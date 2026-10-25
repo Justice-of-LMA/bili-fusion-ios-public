@@ -23,7 +23,7 @@ concurrency:
 jobs:
   build:
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       FUSION_LIVE_SOAK: ${{ inputs.live_soak && '1' || '0' }}
@@ -34,12 +34,18 @@ jobs:
           node --check Fusion/Web/app.js
           node --check Fusion/Web/ios-media.js
           node --test Tests/*.test.cjs
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: voice-cache
         with:
           path: Vendor/ffmpeg
           key: voice-8.1.3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-voice.sh') }}
       - name: Build local audio filter dependency
         run: bash scripts/build-voice.sh
+      - uses: actions/cache/save@v4
+        if: steps.voice-cache.outputs.cache-hit != 'true'
+        with:
+          path: Vendor/ffmpeg
+          key: voice-8.1.3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-voice.sh') }}
       - name: Generate Xcode project
         run: |
           swift scripts/make-icon.swift
@@ -74,19 +80,25 @@ jobs:
   compatibility-27:
     if: inputs.run_tests && inputs.compatibility
     runs-on: xcode-27
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       FUSION_TEST_IOS_MAJOR: "27"
       FUSION_LIVE_SOAK: "0"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: voice-cache
         with:
           path: Vendor/ffmpeg
           key: voice27-8.1.3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-voice.sh') }}
       - name: Build local audio filter dependency
         run: bash scripts/build-voice.sh
+      - uses: actions/cache/save@v4
+        if: steps.voice-cache.outputs.cache-hit != 'true'
+        with:
+          path: Vendor/ffmpeg
+          key: voice27-8.1.3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-voice.sh') }}
       - name: Generate compatibility test project
         run: |
           swift scripts/make-icon.swift
