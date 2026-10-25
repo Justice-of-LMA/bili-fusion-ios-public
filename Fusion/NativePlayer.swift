@@ -42,7 +42,7 @@ final class VideoSurface: UIView {
         player.volume = max(0, min(1, volume)); player.replaceCurrentItem(with: item)
         watchBuffer(\.status,item);watchBuffer(\.loadedTimeRanges,item);watchBuffer(\.isPlaybackBufferEmpty,item);watchBuffer(\.isPlaybackLikelyToKeepUp,item);watchBuffer(\.isPlaybackBufferFull,item)
         for name in [AVPlayerItem.playbackStalledNotification,AVPlayerItem.didPlayToEndTimeNotification,AVPlayerItem.failedToPlayToEndTimeNotification]{
-            itemNotifications.append(NotificationCenter.default.addObserver(forName:name,object:item,queue:.main){[weak self,weak item] _ in Task{@MainActor in
+            itemNotifications.append(NotificationCenter.default.addObserver(forName:name,object:item,queue:.main){[weak self,weak item] notification in Task{@MainActor in
                 guard let self,let item,self.player.currentItem === item,!self.token.isEmpty else{return}
                 if name==AVPlayerItem.didPlayToEndTimeNotification{self.ended=true}
                 else if name==AVPlayerItem.failedToPlayToEndTimeNotification{
