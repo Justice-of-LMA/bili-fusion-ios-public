@@ -1,0 +1,31 @@
+/* Native video is rendered below the WKWebView; only the exact video viewports are transparent. */
+html,body{background:transparent}
+#stage{background:transparent}
+#videoA,#videoB{opacity:0!important;pointer-events:none}
+#composer{background:#101a2ae8;border-radius:10px;padding:3px}
+input:not([type=range]):not([type=checkbox]):not([type=color]),select{font-size:16px}
+body.full #stageMenu{top:10px;right:10px}
+body.full #settings{max-width:calc(100% - 12px)}
+body.full #composer{bottom:8px}
+body.full header,body.full .setup,body.full .status,body.full main>.card,body.full footer{visibility:hidden}
+body.full #settings,body.full #composer{visibility:visible}
+@media(min-width:700px){
+  .room-slot{display:grid;grid-template-columns:minmax(0,1fr) 120px;column-gap:12px}
+  .room-slot>label,.room-slot>input,.room-slot>.follow-trigger{grid-column:1}
+  .room-preview{grid-column:2;grid-row:1/4;margin:0}
+  #stageMenu button{font-size:14px;padding:8px 12px;min-height:40px}
+  #settings{width:390px}
+  body.full #cards{width:min(350px,38%)}
+  .sc-body{font-size:15px}
+}
+/* SC stack is positioned against A's viewport, independent of display resolution. */
+#cards{position:absolute;display:flex;flex-direction:column;gap:8px;overflow:auto;pointer-events:none;}
+#cards[hidden]{display:none!important}
+#cards .sc{flex-shrink:0;pointer-events:auto}
+#cards .sc,#cards .sc-body{touch-action:none;user-select:none;cursor:grab}
+#cards .sc-head button{cursor:pointer}
+#cards.sc-pass-through,#cards.sc-pass-through *{pointer-events:none!important}
+#cards.sc-pass-through .sc-head button{pointer-events:auto!important;cursor:pointer}
+#cards.sc-pass-through .sc{cursor:default}
+.room-slot>select{grid-column:1;width:100%;margin:5px 0}
+#videoA.web-player,#videoB.web-player{opacity:1!important}

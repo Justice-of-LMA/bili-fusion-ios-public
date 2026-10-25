@@ -1,0 +1,117 @@
+name: Build iOS AI Voice IPA
+on:
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: Run simulator unit tests
+        required: true
+        type: boolean
+        default: true
+      live_soak:
+        description: Public 7777/84074 native playback for five minutes (no login or sending)
+        type: boolean
+        default: false
+      compatibility:
+        description: Also test iPadOS 27 preview
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: ios-ai-manual-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      FUSION_LIVE_SOAK: ${{ inputs.live_soak && '1' || '0' }}
+      FUSION_BUNDLE_ID: com.bilifusion.ios.ai
+    steps:
+      - uses: actions/checkout@v4
+      - name: Local JavaScript checks
+        run: |
+          node --check Fusion/Web/app.js
+          node --check Fusion/Web/ios-media.js
+          node --test Tests/*.test.cjs
+      - uses: actions/cache@v4
+        with:
+          path: Vendor/ffmpeg
+          key: voice-8.1.3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-voice.sh') }}
+      - name: Build local audio filter dependency
+        run: bash scripts/build-voice.sh
+      - uses: actions/cache@v4
+        with:
+          path: Vendor/onnxruntime
+          key: ort-ios-1.24.2-f7100a99
+      - name: Prepare local AI runtime and model
+        run: bash scripts/prepare-ai-voice.sh
+      - name: Generate Xcode project
+        run: |
+          swift scripts/make-icon.swift
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          xcodegen generate --spec project-ai.yml
+      - name: Build device executable
+        run: |
+          set -o pipefail
+          mkdir -p artifacts
+          xcodebuild -project Fusion.xcodeproj -scheme Fusion -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build/device CODE_SIGNING_ALLOWED=NO build > artifacts/device-build.log 2>&1 || { tail -100 artifacts/device-build.log; exit 1; }
+      - name: Simulator tests
+        if: inputs.run_tests
+        run: bash scripts/test-simulator.sh
+      - name: Package unsigned IPA for user re-signing
+        run: |
+          mkdir -p build/package/Payload
+          cp -R build/device/Build/Products/Release-iphoneos/Fusion.app build/package/Payload/
+          file build/package/Payload/Fusion.app/Fusion | tee artifacts/executable.txt
+          lipo -archs build/package/Payload/Fusion.app/Fusion | grep -w arm64
+          cd build/package
+          zip -qr ../../artifacts/BiliFusion-iOS-AI-0.3.2-unsigned.ipa Payload
+          cd ../..
+          python3 scripts/verify-ipa.py artifacts/BiliFusion-iOS-AI-0.3.2-unsigned.ipa --ai > artifacts/verification.json
+          shasum -a 256 artifacts/*.ipa > artifacts/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-ai-build-${{ github.run_number }}
+          path: artifacts/
+          retention-days: 1
+          if-no-files-found: ignore
+  compatibility-27:
+    if: inputs.run_tests && inputs.compatibility
+    runs-on: xcode-27
+    timeout-minutes: 20
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      FUSION_BUNDLE_ID: com.bilifusion.ios.ai
+      FUSION_TEST_IOS_MAJOR: "27"
+      FUSION_LIVE_SOAK: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: Vendor/ffmpeg
+          key: voice27-8.1.3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-voice.sh') }}
+      - name: Build local audio filter dependency
+        run: bash scripts/build-voice.sh
+      - uses: actions/cache@v4
+        with:
+          path: Vendor/onnxruntime
+          key: ort-ios-1.24.2-f7100a99
+      - name: Prepare local AI runtime and model
+        run: bash scripts/prepare-ai-voice.sh
+      - name: Generate compatibility test project
+        run: |
+          swift scripts/make-icon.swift
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          xcodegen generate --spec project-ai.yml
+      - name: iPadOS 27 preview compatibility tests
+        run: bash scripts/test-simulator.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-ai27-compatibility-${{ github.run_number }}
+          path: artifacts/
+          retention-days: 1
+          if-no-files-found: ignore

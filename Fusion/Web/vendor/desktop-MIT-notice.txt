@@ -1,0 +1,39 @@
+# SC 功能的开源来源与许可证
+
+v0.12.1 的 SC 初始化顺序、WBI 签名及现有消息寿命处理，改编自：
+
+- 项目：bilibili-fullscreen-sc / B站助手
+- 作者：elester
+- 源码：https://github.com/eeelester/bilibili-fullscreen-sc
+- 对照文件：`entrypoints/fullScreen.content/utils.tsx`、`wbi.ts`、`components/ScList/hook.ts`
+- 对照日期：2026-09-19
+
+适配用于将 B 房间 SC 转发到 A、同时显示所选 B站 A 房间自身 SC、每个所选标签页的单连接生命周期管理、独立开关、互相避让与样式隔离。未包含原项目的评论 IP 功能。原作者及 B 站均未为本扩展背书。
+
+## bilibili-fullscreen-sc — MIT License
+
+Copyright (c) 2024-present elester
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+## 浏览器 SC 连接与解码依赖
+
+本扩展与参考插件一样使用 `bilibili-live-ws` 6.3.1、`md5` 2.3.0，浏览器依赖打包在 `vendor/sc-transport.js` 中，不在运行时下载代码。
+
+各依赖的完整版权及许可证见随包附带的 `vendor/SC-LICENSES.txt`。包括 bilibili-live-ws、Google Brotli decoder、pako、buffer、events、isomorphic-ws、array-flat-polyfill、md5、crypt、charenc、base64-js、ieee754、is-buffer 等。

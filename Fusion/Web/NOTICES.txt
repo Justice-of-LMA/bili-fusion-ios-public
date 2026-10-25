@@ -1,0 +1,17 @@
+二路随行 iOS 0.1.0 开发预览版
+开发者：B站 @夙潮夜汐
+
+运行环境：iOS / iPadOS 16 及以上。双路 H.264 / HLS 由系统 AVPlayer 解码。
+界面、弹幕与 SC 复用自本项目 Android 版本，并为 WKWebView 适配。
+部分 SC / WBI 思路源自原有 MIT 许可桌面实现，保留 vendor/desktop-MIT-notice.txt。
+没有打包或复制 FreeCast 的未授权自有代码；仅参考其架构。
+系统 Foundation、UIKit、WebKit、AVFoundation、Network、CryptoKit、zlib 由 iOS 提供。
+开发工具 XcodeGen 仅用于生成工程，不包含在 App 内。
+
+没有收集、上传登录会话。B站登录由独立官方网页处理；密码不由原生桥读取。
+本地媒体代理仅监听 127.0.0.1，随机地址访问，仅请求白名单 HTTPS CDN，不向 CDN 发送 Cookie。
+后台、退出官方登录页前后需手动继续播放并重新核对同步。首次设置延迟可能需要积累缓冲。
+0.2.0：本项目分发采用 GPL-3.0，保留既有 MIT 组件署名。完整对应源码、构建脚本与第三方来源随安装包提供。
+新增 mpegts.js（xqq/mpegts.js，LGPL-3.0）、CryptoJS core/MD5（MIT，见 vendor/crypto-LICENSE.txt）。平台协议与解析逻辑参考 xiaoyaocz/dart_simple_live（GPL-3.0）。
+本机人声处理使用 FFmpeg 8.1.3 的精简 avformat/avcodec/avutil（LGPL-2.1-or-later），未开启 GPL/nonfree 编码器；官方源码 SHA256 7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3，下载及完整构建选项在 scripts/build-voice.sh，源码归档随对应源码包提供。
+只在本机对立体声 AAC 的居中频段做减弱并重新编码音频，视频只重新封装，不解码重编码；不上传音频、不录音、无云端收费。关闭或格式不适用时保留原声。

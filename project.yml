@@ -1,0 +1,84 @@
+name: Fusion
+options:
+  bundleIdPrefix: com.bilifusion
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CODE_SIGNING_ALLOWED: NO
+    MARKETING_VERSION: "0.2.5"
+    CURRENT_PROJECT_VERSION: "16"
+targets:
+  Fusion:
+    type: application
+    platform: iOS
+    sources:
+      - path: Fusion
+        excludes: [Web, Info.plist]
+      - path: Fusion/Web
+        type: folder
+        buildPhase: resources
+    info:
+      path: Fusion/Info.plist
+      properties:
+        CFBundleDisplayName: 二路随行
+        CFBundleIdentifier: com.bilifusion.ios
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UIRequiresFullScreen: false
+        UIBackgroundModes: [audio]
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).FusionSceneDelegate"
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        LSApplicationQueriesSchemes: [alipays]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            127.0.0.1:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: false
+    settings:
+      base:
+        SWIFT_OBJC_BRIDGING_HEADER: Fusion/Fusion-Bridging-Header.h
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/Vendor/ffmpeg/$(PLATFORM_NAME)/include"
+        LIBRARY_SEARCH_PATHS: "$(SRCROOT)/Vendor/ffmpeg/$(PLATFORM_NAME)/lib"
+        OTHER_LDFLAGS: "$(inherited) -lavformat -lavcodec -lavutil -liconv -lbz2 -lz"
+        PRODUCT_BUNDLE_IDENTIFIER: com.bilifusion.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SUPPORTS_MACCATALYST: NO
+    dependencies:
+      - sdk: libz.tbd
+  FusionTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/Swift
+      - path: Tests/Fixtures
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - target: Fusion
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_OBJC_BRIDGING_HEADER: Fusion/Fusion-Bridging-Header.h
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/Vendor/ffmpeg/$(PLATFORM_NAME)/include"
+schemes:
+  Fusion:
+    build:
+      targets:
+        Fusion: all
+        FusionTests: [test]
+    test:
+      environmentVariables:
+        FUSION_LIVE_SOAK: "$(FUSION_LIVE_SOAK)"
+      targets: [FusionTests]
