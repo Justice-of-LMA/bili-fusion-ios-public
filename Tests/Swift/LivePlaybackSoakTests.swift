@@ -7,7 +7,7 @@ import CoreVideo
 
 /// Explicit opt-in public live soak. Never logs in, posts chat, saves source URLs or records video.
 final class LivePlaybackSoakTests:XCTestCase {
-    @MainActor func test7777And84074ContinueForFiveMinutesWithoutRefresh()async throws{
+    @MainActor func test7777And6ContinueForFiveMinutesWithoutRefresh()async throws{
         guard ProcessInfo.processInfo.environment["FUSION_LIVE_SOAK"]=="1" else{throw XCTSkip("Live soak is opt-in; local fixtures are not a live-room verification")}
         let delegate=try XCTUnwrap(UIApplication.shared.delegate as? AppDelegate)
         let controller=try XCTUnwrap(delegate.window?.rootViewController as? FusionController)
@@ -31,7 +31,7 @@ final class LivePlaybackSoakTests:XCTestCase {
         let proxy=try XCTUnwrap(mirror.children.first{$0.label=="proxy"}?.value as? MediaProxy)
         let proxyWasRunning=proxy.isRunning
         var started=false
-        var records=[JSON](),report:JSON=["inputRooms":["A":"7777","B":"84074"],"aiEdition":VoiceSegment.aiEnabled,"requestedSeconds":300,"completed":false]
+        var records=[JSON](),report:JSON=["inputRooms":["A":"7777","B":"6"],"aiEdition":VoiceSegment.aiEnabled,"requestedSeconds":300,"completed":false]
         func cleanup()async{
             _=try? await web.evaluateJavaScript("""
             document.getElementById('stop').click();
@@ -58,7 +58,7 @@ final class LivePlaybackSoakTests:XCTestCase {
         Native.call=(id,op,payload)=>{if(['resolve','mediaOpen','mediaSeek','startChat','mediaPlay','mediaPause','mediaAudioOnly'].includes(op)){const a=JSON.parse(payload);__liveSoakOps.push({op,source:a.source||null,quality:a.quality??null});}__liveSoakOriginalCall(id,op,payload);};
         for(const s of ['A','B']){
           const p=document.getElementById('platform'+s);p.value='bilibili';p.dispatchEvent(new Event('input'));
-          const room=document.getElementById('room'+s);room.value=s==='A'?'7777':'84074';room.dispatchEvent(new Event('input'));
+          const room=document.getElementById('room'+s);room.value=s==='A'?'7777':'6';room.dispatchEvent(new Event('input'));
           const volume=document.getElementById('volume'+s);volume.value='50';volume.dispatchEvent(new Event('input'));
           const delay=document.getElementById('delay'+s);delay.value='0';delay.dispatchEvent(new Event('change'));
         }
@@ -88,7 +88,7 @@ final class LivePlaybackSoakTests:XCTestCase {
         var lastAdvanced=["A":0.0,"B":0.0],longest=["A":0.0,"B":0.0],progress=["A":0.0,"B":0.0],newFrames=["A":0,"B":0]
         let start=Date();var audioOnly=false
         report["warmupSeconds"]=Date().timeIntervalSince(warmup)
-        try write("active.json",["active":true,"startedAt":start.timeIntervalSince1970,"rooms":["7777","84074"]])
+        try write("active.json",["active":true,"startedAt":start.timeIntervalSince1970,"rooms":["7777","6"]])
         while Date().timeIntervalSince(start)<300{
             let elapsed=Date().timeIntervalSince(start)
             if elapsed>=150 && !audioOnly{

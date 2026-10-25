@@ -8,7 +8,7 @@ on:
         type: boolean
         default: true
       live_soak:
-        description: Public 7777/84074 native playback for five minutes (no login or sending)
+        description: Public 7777/6 native playback for five minutes (no login or sending)
         type: boolean
         default: false
       compatibility:

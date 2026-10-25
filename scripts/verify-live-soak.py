@@ -11,7 +11,7 @@ def verify(path, ai):
     def require(condition, reason):
         if not condition:
             raise ValueError(reason)
-    require(report.get("inputRooms") == {"A": "7777", "B": "84074"}, "Wrong public live room pairing")
+    require(report.get("inputRooms") == {"A": "7777", "B": "6"}, "Wrong public live room pairing")
     require(report.get("aiEdition") is ai, "Wrong live-test edition")
     require(report.get("completed") is True, "Actual five-minute run did not finish")
     require(report.get("actualSeconds", 0) >= 300, "Less than five minutes of real native playback")
