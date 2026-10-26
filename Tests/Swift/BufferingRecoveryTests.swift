@@ -102,11 +102,18 @@ final class BufferingRecoveryTests:XCTestCase {
         p.play();try await wait(10,"Manual continue did not resume the retained item"){p.player.currentTime().seconds>stopped+0.25}
         XCTAssertTrue(p.player.currentItem === item);XCTAssertEqual(p.token,"gated-original")
     }
-    @MainActor func testReadyLiveItemFailureNoticeDoesNotFabricatePauseOrTerminalError()async throws{
-        let origin=try GatedHLSOrigin(segments:tsSegments()),p=NativePlayer();defer{p.close();origin.stop()}
-        try await wait(5,"Origin not ready"){origin.port>0}
-        p.open(url:URL(string:"http://127.0.0.1:\(origin.port)/stream.m3u8")!,token:"nonterminal",volume:0);p.player.isMuted=true;p.play()
-        try await wait(12,"Fixture did not advance"){p.player.timeControlStatus == .playing && p.player.currentTime().seconds>0.3}
+    @MainActor func testReadyItemFailureNoticeDoesNotFabricatePauseOrTerminalError()async throws{
+        // This checks notification handling on a ready item, not live-origin startup.
+        // A permanently unchanged 9s live playlist may never start on a cold simulator.
+        // The separate gated-HLS tests above still require real starvation and refill.
+        let root=try XCTUnwrap(Bundle(for:Self.self).url(forResource:"Fixtures",withExtension:nil))
+        var data=try Data(contentsOf:root.appendingPathComponent("init.mp4"))
+        for i in 0..<18{data.append(try Data(contentsOf:root.appendingPathComponent("segment-\(i).m4s")))}
+        let path=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".mp4")
+        let p=NativePlayer();defer{p.close();try? FileManager.default.removeItem(at:path)}
+        try data.write(to:path)
+        p.open(url:path,token:"nonterminal",volume:0);p.player.isMuted=true;p.play()
+        try await wait(12,"Ready-item notification fixture did not advance"){p.player.currentItem?.status == .readyToPlay && p.player.timeControlStatus == .playing && p.player.currentTime().seconds>0.3}
         let item=try XCTUnwrap(p.player.currentItem),time=p.player.currentTime().seconds,requests=p.playRequests
         NotificationCenter.default.post(name:AVPlayerItem.failedToPlayToEndTimeNotification,object:item,userInfo:[AVPlayerItemFailedToPlayToEndTimeErrorKey:NSError(domain:"FusionSyntheticTransport",code:503)])
         try await Task.sleep(nanoseconds:300_000_000)
