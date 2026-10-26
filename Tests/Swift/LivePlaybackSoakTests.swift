@@ -125,7 +125,7 @@ final class LivePlaybackSoakTests:XCTestCase {
                 _=try await web.evaluateJavaScript("const e=document.getElementById('audioOnlyB');e.checked=true;e.dispatchEvent(new Event('input'));true")
                 audioOnly=true
             }
-            var row:JSON=["elapsed":elapsed,"bAudioOnly":audioOnly,"transport":proxy.diagnostics()]
+            var row:JSON=["elapsed":elapsed,"bAudioOnly":audioOnly]
             for (index,source) in ["A","B"].enumerated(){
                 let p=players[source]!,time=p.player.currentTime().seconds,state=p.snapshot()
                 XCTAssertTrue(p.player.currentItem === items[index],"Soak must not silently replace a live item")
