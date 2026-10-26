@@ -26,12 +26,13 @@ def verify(path, ai):
     require(not any(o.get("op") == "mediaSeek" for o in ops), "A seek may have hidden stalled playback")
     for source in ["A", "B"]:
         require(report.get("progressSeconds", {}).get(source, 0) > 270, source + " playback did not advance")
-        require(report.get("longestNoProgressSeconds", {}).get(source, 300) < 5, source + " sustained stall")
+        require(report.get("longestNoProgressSeconds", {}).get(source, 300) <= 11, source + " sustained stall beyond user-accepted ~10s plus 1Hz sampling tolerance")
         require(report.get("newVideoFramesSampled", {}).get(source, 0) > (30 if source == "A" else 15), source + " decoded frames missing")
         require(all(not s.get(source, {}).get("error") for s in samples), source + " reports a playback error")
     return {"file": path.name, "sha256": hashlib.sha256(raw).hexdigest().upper(),
             "edition": "AI" if ai else "normal", "actualSeconds": report["actualSeconds"],
             "sampleCount": len(samples), "progressSeconds": report["progressSeconds"],
+            "acceptance": "User accepted occasional ~10s self-recovering buffering on 2026-10-26; 11s limit includes 1Hz sampling tolerance. Raw timings retained.",
             "longestNoProgressSeconds": report["longestNoProgressSeconds"],
             "newVideoFramesSampled": report["newVideoFramesSampled"],
             "limitation": "Cloud iPad simulator; not physical-device/network certification"}

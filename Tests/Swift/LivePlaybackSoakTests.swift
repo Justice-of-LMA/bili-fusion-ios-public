@@ -49,8 +49,11 @@ final class LivePlaybackSoakTests:XCTestCase {
             }
         }
         var warmupSamples=[JSON]()
+        // User accepted occasional ~10s self-recovering buffering on 2026-10-26.
+        // One extra second covers the 1Hz sampler; all raw pauses remain in the report.
+        let acceptedNoProgressSeconds=11.0
         var started=false
-        var records=[JSON](),report:JSON=["inputRooms":["A":"7777","B":"6"],"aiEdition":VoiceSegment.aiEnabled,"requestedSeconds":300,"authenticated":loginRequested,"completed":false]
+        var records=[JSON](),report:JSON=["inputRooms":["A":"7777","B":"6"],"aiEdition":VoiceSegment.aiEnabled,"requestedSeconds":300,"acceptedNoProgressSeconds":acceptedNoProgressSeconds,"authenticated":loginRequested,"completed":false]
         func cleanup()async{
             _=try? await web.evaluateJavaScript("""
             document.getElementById('stop').click();
@@ -153,7 +156,7 @@ final class LivePlaybackSoakTests:XCTestCase {
         XCTAssertEqual(ops.filter{$0.str("op")=="mediaSeek"}.count,0,"Do not jump to live to hide a stall")
         for s in ["A","B"]{
             XCTAssertGreaterThan(progress[s] ?? 0,270,"Playback should advance through the five-minute soak")
-            XCTAssertLessThan(longest[s] ?? 300,5,"A sustained frozen clock must fail, not pass because item is ready")
+            XCTAssertLessThanOrEqual(longest[s] ?? 300,acceptedNoProgressSeconds,"Persistent stops still fail; user accepted about ten seconds of self-recovering buffering, not an unrecovered player")
             XCTAssertGreaterThan(newFrames[s] ?? 0,s=="A" ? 30:15,"Sample actual decoded video before switching B to audio-only")
         }
         await cleanup()
