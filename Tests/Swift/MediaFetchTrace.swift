@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+@testable import Fusion
 
 /// Aggregate media transport facts only: never retain/publish URLs, headers, cookies or bodies.
 /// Observes existing AVPlayer requests; does not initiate, retry, refresh or switch a stream.

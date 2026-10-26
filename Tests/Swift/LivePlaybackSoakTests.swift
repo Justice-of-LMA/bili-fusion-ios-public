@@ -92,7 +92,7 @@ final class LivePlaybackSoakTests:XCTestCase {
         let warmup=Date()
         while Date().timeIntervalSince(warmup)<65{
             if warmupSamples.count<Int(Date().timeIntervalSince(warmup))+1{
-                warmupSamples.append(["elapsed":Date().timeIntervalSince(warmup),"lifecycle":controller.lifecycleState(),"itemErrors":players.mapValues{itemErrors($0)},"transport":proxy.diagnostics()])
+                warmupSamples.append(["elapsed":Date().timeIntervalSince(warmup),"lifecycle":controller.lifecycleState(),"itemErrors":players.mapValues{itemErrors($0)}])
             }
             if ["A","B"].allSatisfy({s in guard let p=players[s] else{return false};return p.player.timeControlStatus == .playing && p.player.currentTime().seconds>0.2 && !p.token.isEmpty}){started=true;break}
             try await Task.sleep(nanoseconds:250_000_000)
