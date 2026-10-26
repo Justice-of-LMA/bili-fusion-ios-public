@@ -16,7 +16,7 @@ if [ "${FUSION_LIVE_SOAK:-0}" = "1" ]; then
   monitor_pid=$!
 fi
 test_status=0
-xcodebuild -project Fusion.xcodeproj -scheme Fusion -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath build/simulator CODE_SIGNING_ALLOWED=NO FUSION_LIVE_SOAK="${FUSION_LIVE_SOAK:-0}" test > artifacts/simulator-tests.log 2>&1 || test_status=$?
+xcodebuild -project Fusion.xcodeproj -scheme Fusion -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath build/simulator CODE_SIGNING_ALLOWED=NO FUSION_LIVE_SOAK="${FUSION_LIVE_SOAK:-0}" FUSION_LIVE_LOGIN="${FUSION_LIVE_LOGIN:-0}" test > artifacts/simulator-tests.log 2>&1 || test_status=$?
 APP_DATA=$(xcrun simctl get_app_container "$DEVICE_ID" "$APP_ID" data 2>/dev/null || true)
 if [ -n "$APP_DATA" ] && [ -d "$APP_DATA/Documents/live-soak" ]; then cp -R "$APP_DATA/Documents/live-soak" artifacts/live-soak; fi
 cleanup_monitor

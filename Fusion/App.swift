@@ -41,7 +41,8 @@ import WebKit
     private var orientationMask:UIInterfaceOrientationMask{orientationChoice=="landscape" ? .landscape:orientationChoice=="portrait" ? .portrait:UIDevice.current.userInterfaceIdiom == .pad ? .all:.allButUpsideDown}
     private let players = ["A": NativePlayer(), "B": NativePlayer()]
     private var sockets = [String: any ChatConnection](), learned = [String: [JSON]]()
-    private var timer: Timer?, pending = 0, full = false, ready = false
+    private var timer: Timer?, full = false, ready = false
+    private var bridgeBudget=BridgeBudget()
     private var layouts = [String: CGRect](), shown = [String: Bool]()
     private let assets: WebAssets
     private let startupOverlay = StartupOverlay()
@@ -174,10 +175,9 @@ import WebKit
               let payload = envelope["payload"] as? String, payload.utf8.count <= (op == "blockingSet" ? 524288 : 8192), let data = payload.data(using: .utf8), let args = try? JSONSerialization.jsonObject(with: data) as? JSON else { return }
         if op == "layout" { layout(args); return }
         if op == "videoZoom" { let source=args.str("source");if let p=players[source],p.token==args.str("token"){p.surface.zoom(scale:CGFloat((args["scale"] as? NSNumber)?.doubleValue ?? 1),x:CGFloat((args["x"] as? NSNumber)?.doubleValue ?? 0),y:CGFloat((args["y"] as? NSNumber)?.doubleValue ?? 0))};return }
-        guard pending < 16 else { reply(id, nil, "操作过于频繁"); return }
-        pending += 1
+        guard let lane=bridgeBudget.acquire(op) else { reply(id, nil, "操作过于频繁，请稍后手动重试"); return }
         Task {
-            defer { pending -= 1 }
+            defer { bridgeBudget.release(lane) }
             do { reply(id, try await operation(op, args)) }
             catch { reply(id, nil, error.localizedDescription) }
         }

@@ -5,10 +5,12 @@ import AVFoundation
 import CoreVideo
 @testable import Fusion
 
-/// Explicit opt-in public live soak. Never logs in, posts chat, saves source URLs or records video.
+/// Explicit opt-in live soak. Optional user-scanned login is temporary; never posts chat or records video.
 final class LivePlaybackSoakTests:XCTestCase {
     @MainActor func test7777And6ContinueForFiveMinutesWithoutRefresh()async throws{
         guard ProcessInfo.processInfo.environment["FUSION_LIVE_SOAK"]=="1" else{throw XCTSkip("Live soak is opt-in; local fixtures are not a live-room verification")}
+        executionTimeAllowance=900
+        let loginRequested=ProcessInfo.processInfo.environment["FUSION_LIVE_LOGIN"]=="1"
         let delegate=try XCTUnwrap(UIApplication.shared.delegate as? AppDelegate)
         let controller=try XCTUnwrap(delegate.window?.rootViewController as? FusionController)
         controller.loadViewIfNeeded()
@@ -30,6 +32,10 @@ final class LivePlaybackSoakTests:XCTestCase {
             XCTFail("Bundled UI did not become ready before the live test; do not access opaque-origin storage or call this a stream failure")
             return
         }
+        if loginRequested{
+            do{try await LiveTestLogin.authenticate(folder:document.appendingPathComponent("live-login",isDirectory:true))}
+            catch{await LiveTestLogin.clear();throw error}
+        }
         let old=try await web.evaluateJavaScript("localStorage.getItem('fusion-mobile-v1')")
         let saved=String(data:try JSONSerialization.data(withJSONObject:[old]),encoding:.utf8)!
         let mirror=Mirror(reflecting:controller)
@@ -44,7 +50,7 @@ final class LivePlaybackSoakTests:XCTestCase {
         }
         var warmupSamples=[JSON]()
         var started=false
-        var records=[JSON](),report:JSON=["inputRooms":["A":"7777","B":"6"],"aiEdition":VoiceSegment.aiEnabled,"requestedSeconds":300,"completed":false]
+        var records=[JSON](),report:JSON=["inputRooms":["A":"7777","B":"6"],"aiEdition":VoiceSegment.aiEnabled,"requestedSeconds":300,"authenticated":loginRequested,"completed":false]
         func cleanup()async{
             _=try? await web.evaluateJavaScript("""
             document.getElementById('stop').click();
@@ -54,6 +60,7 @@ final class LivePlaybackSoakTests:XCTestCase {
             // Rebuild the local UI from restored preferences before another XCTest runs.
             // This reloads only bundled assets, never a room, stream, account or chat send.
             players.values.forEach{$0.close()};if !proxyWasRunning{proxy.stop()}
+            if loginRequested{await LiveTestLogin.clear()}
             web.reload()
             for _ in 0..<100{
                 if !web.isLoading,(try? await web.evaluateJavaScript("window.__fusionUIReady===true")) as? Bool == true{break}

@@ -81,4 +81,5 @@ schemes:
     test:
       environmentVariables:
         FUSION_LIVE_SOAK: "$(FUSION_LIVE_SOAK)"
+        FUSION_LIVE_LOGIN: "$(FUSION_LIVE_LOGIN)"
       targets: [FusionTests]

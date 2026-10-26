@@ -8,7 +8,11 @@ on:
         type: boolean
         default: true
       live_soak:
-        description: Public 7777/6 native playback for five minutes (no login or sending)
+        description: 7777/6 native playback for five minutes (no chat sending)
+        type: boolean
+        default: false
+      login:
+        description: User-authorized QR login on this temporary runner before the live test
         type: boolean
         default: false
       compatibility:
@@ -23,12 +27,25 @@ concurrency:
 jobs:
   build:
     runs-on: macos-26
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       FUSION_LIVE_SOAK: ${{ inputs.live_soak && '1' || '0' }}
+      FUSION_LIVE_LOGIN: ${{ inputs.live_soak && inputs.login && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
+      - name: Generate user-requested Bilibili login QR
+        if: inputs.live_soak && inputs.login
+        run: swift scripts/live-login.swift generate
+      - uses: actions/upload-artifact@v4
+        if: inputs.live_soak && inputs.login
+        with:
+          name: ios-bili-login-qr-${{ github.run_id }}
+          path: login-qr/ios-bili-qr.png
+          retention-days: 1
+      - name: Wait for user to scan and confirm Bilibili login
+        if: inputs.live_soak && inputs.login
+        run: swift scripts/live-login.swift poll
       - name: Local JavaScript checks
         run: |
           node --check Fusion/Web/app.js
@@ -70,6 +87,16 @@ jobs:
           cd ../..
           python3 scripts/verify-ipa.py artifacts/BiliFusion-iOS-0.2.5-unsigned.ipa > artifacts/verification.json
           shasum -a 256 artifacts/*.ipa > artifacts/SHA256SUMS.txt
+      - name: Discard temporary login session
+        if: always() && inputs.login
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          directory = Path(os.environ['RUNNER_TEMP']) / 'fusion-live-login'
+          for name in ['challenge.json', 'session.json']:
+              (directory / name).unlink(missing_ok=True)
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:

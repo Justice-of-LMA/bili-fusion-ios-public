@@ -14,7 +14,7 @@ B站、虎牙、斗鱼主副组合，两路音量与0–20秒额外延迟；统�
 
 macOS + Xcode + XcodeGen。先运行 bash scripts/build-voice.sh，再运行 xcodegen generate。AI版另运行 bash scripts/prepare-ai-voice.sh，并使用 xcodegen generate --spec project-ai.yml。
 
-Actions只接受手动触发。run_tests启用原生回归；live_soak启用7777／6真实原生连续五分钟测试（先双画面，再B仅音频），不登录、不发送消息。失败不能当作通过，模拟器也不替代所有真机与网络验收。构建不使用签名证书，IPA需用户自行签名；不需要把密码、Cookie或私钥交给开发者。
+Actions只接受手动触发。run_tests启用原生回归；live_soak启用7777／6真实原生连续五分钟测试（先双画面，再B仅音频），不发送消息；可选login由用户明确要求并本人扫码，登录凭据只在该临时Mac及iOS测试环境使用，不进入源码、日志或下载包。失败不能当作通过，模拟器也不替代所有真机与网络验收。构建不使用签名证书，IPA需用户自行签名；不需要把密码、Cookie或私钥交给开发者。
 
 本公开仓库只发布审核后的当前源码快照及随包资源，不复制原私有仓库历史，不包含账号、签名、缓存或本机测试产物。随包支付宝/微信资源只用于用户自愿支持，不影响功能，不自动付款。
 
