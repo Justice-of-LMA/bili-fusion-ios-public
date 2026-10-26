@@ -89,7 +89,7 @@ final class LivePlaybackSoakTests:XCTestCase {
         let warmup=Date()
         while Date().timeIntervalSince(warmup)<65{
             if warmupSamples.count<Int(Date().timeIntervalSince(warmup))+1{
-                warmupSamples.append(["elapsed":Date().timeIntervalSince(warmup),"lifecycle":controller.lifecycleState(),"itemErrors":players.mapValues{itemErrors($0)}])
+                warmupSamples.append(["elapsed":Date().timeIntervalSince(warmup),"lifecycle":controller.lifecycleState(),"itemErrors":players.mapValues{itemErrors($0)},"transport":proxy.diagnostics()])
             }
             if ["A","B"].allSatisfy({s in guard let p=players[s] else{return false};return p.player.timeControlStatus == .playing && p.player.currentTime().seconds>0.2 && !p.token.isEmpty}){started=true;break}
             try await Task.sleep(nanoseconds:250_000_000)
@@ -122,7 +122,7 @@ final class LivePlaybackSoakTests:XCTestCase {
                 _=try await web.evaluateJavaScript("const e=document.getElementById('audioOnlyB');e.checked=true;e.dispatchEvent(new Event('input'));true")
                 audioOnly=true
             }
-            var row:JSON=["elapsed":elapsed,"bAudioOnly":audioOnly]
+            var row:JSON=["elapsed":elapsed,"bAudioOnly":audioOnly,"transport":proxy.diagnostics()]
             for (index,source) in ["A","B"].enumerated(){
                 let p=players[source]!,time=p.player.currentTime().seconds,state=p.snapshot()
                 XCTAssertTrue(p.player.currentItem === items[index],"Soak must not silently replace a live item")
@@ -139,7 +139,7 @@ final class LivePlaybackSoakTests:XCTestCase {
                     let comment=(event.errorComment ?? "").replacingOccurrences(of:"https?://[^ \\n]+",with:"[media URL omitted]",options:.regularExpression)
                     return ["code":event.errorStatusCode,"domain":event.errorDomain,"comment":String(comment.prefix(240))]
                 }
-                row[source]=["time":time.isFinite ? time:0,"rate":state["rate"] ?? 0,"readyState":state["readyState"] ?? 0,"waiting":state["waiting"] ?? false,"paused":state["paused"] ?? true,"layerReady":p.surface.videoLayer.isReadyForDisplay,"buffer":state["loaded"] ?? [],"bytes":logs.last?.numberOfBytesTransferred ?? 0,"stalls":logs.last?.numberOfStalls ?? 0,"error":state["error"] ?? "","transportError":state["transportError"] ?? [:],"itemErrors":itemErrors] as JSON
+                row[source]=["time":time.isFinite ? time:0,"rate":state["rate"] ?? 0,"readyState":state["readyState"] ?? 0,"waiting":state["waiting"] ?? false,"paused":state["paused"] ?? true,"layerReady":p.surface.videoLayer.isReadyForDisplay,"buffer":state["loaded"] ?? [],"bytes":logs.last?.numberOfBytesTransferred ?? 0,"stalls":logs.last?.numberOfStalls ?? 0,"error":state["error"] ?? "","transportError":state["transportError"] ?? [:],"itemErrors":itemErrors,"observedBitrate":logs.last?.observedBitrate.isFinite == true ? logs.last!.observedBitrate:0,"transferSeconds":logs.last?.transferDuration.isFinite == true ? logs.last!.transferDuration:0] as JSON
             }
             records.append(row)
             try await Task.sleep(nanoseconds:1_000_000_000)

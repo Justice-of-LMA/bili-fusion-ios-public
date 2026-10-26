@@ -13,6 +13,7 @@ def verify(path, ai):
             raise ValueError(reason)
     require(report.get("inputRooms") == {"A": "7777", "B": "6"}, "Wrong public live room pairing")
     require(report.get("aiEdition") is ai, "Wrong live-test edition")
+    require(report.get("authenticated") is True, "Bilibili login was not verified in the actual iOS simulator")
     require(report.get("completed") is True, "Actual five-minute run did not finish")
     require(report.get("actualSeconds", 0) >= 300, "Less than five minutes of real native playback")
     samples = report.get("samples", [])

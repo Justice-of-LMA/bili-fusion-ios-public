@@ -12,9 +12,11 @@ import Network
     private var port: UInt16 = 0
     private var urls = [String: (URL, Date, String)]()
     private var voice = [String: Float](), voiceStatus = [String: String](), fragmented = Set<String>(), owners=[String:String]()
-    func begin(_ source:String,token:String)->String{let owner=source+":"+token;if let old=owners[source]{voice.removeValue(forKey:old);voiceStatus.removeValue(forKey:old);fragmented.remove(old)};owners[source]=owner;voice[owner]=voice[source] ?? 0;return owner}
+    func begin(_ source:String,token:String)->String{let owner=source+":"+token;if let old=owners[source]{voice.removeValue(forKey:old);voiceStatus.removeValue(forKey:old);fragmented.remove(old);traces.removeValue(forKey:old)};owners[source]=owner;voice[owner]=voice[source] ?? 0;return owner}
     func setVoice(_ owner: String, strength: Float) { voice[owner] = max(0,min(1,strength)); let key=owners[owner] ?? owner;voice[key]=voice[owner];voiceStatus[key] = strength > 0 ? "等待后续片段处理（已缓存声音暂不改变）" : "已关闭" }
     func voiceDetail(_ owner: String) -> String { voiceStatus[owners[owner] ?? owner] ?? "已关闭" }
+    private var traces=[String:MediaFetchTrace]()
+    func diagnostics()->JSON{let now=ProcessInfo.processInfo.systemUptime;return owners.mapValues{traces[$0]?.snapshot(now:now) ?? [:]}}
     private var reverse = [String: String]()
     private var connections = [UUID: NWConnection]()
     private var pipes=[ObjectIdentifier:MediaBytePipe]()
@@ -141,11 +143,13 @@ import Network
             let key=ObjectIdentifier(connection),pipe=MediaBytePipe(connection:connection,request:req);pipes[key]=pipe
             pipe.onClose={ [weak self] in Task{@MainActor in self?.pipes.removeValue(forKey:key)} };pipe.start();return
         }
+        let traceID=traces[entry.2,default:MediaFetchTrace()].begin(now:ProcessInfo.processInfo.systemUptime)
         do {
             var (data, response) = try await fetch(req, isHead ? Int.max : 24 * 1024 * 1024)
-            guard [200, 206].contains(response.statusCode) else { respond(connection, code: 502, body: Data()); return }
+            if ![200,206].contains(response.statusCode){traces[entry.2]?.finish(traceID,now:ProcessInfo.processInfo.systemUptime,status:response.statusCode,isManifest:knownManifest,body:Data());respond(connection,code:502,body:Data());return}
             var type = response.mimeType ?? "application/octet-stream"
             let isManifest = knownManifest || type.lowercased().contains("mpegurl") || data.prefix(7) == Data("#EXTM3U".utf8)
+            traces[entry.2]?.finish(traceID,now:ProcessInfo.processInfo.systemUptime,status:response.statusCode,isManifest:isManifest && !isHead,body:data,age:Double(response.value(forHTTPHeaderField:"Age") ?? "") ?? 0)
             guard !isManifest || response.statusCode == 200 else { respond(connection, code: 502, body: Data()); return }
             if isHead {
                 var extras=[String:String]()
@@ -171,7 +175,7 @@ import Network
                 for name in ["Content-Range", "Accept-Ranges"] { if let value = response.value(forHTTPHeaderField: name), !value.contains("\r"), !value.contains("\n") { extras[name] = value } }
             }
             respond(connection, code: transformed ? 200:response.statusCode, body: data, type: type, headers: extras, head: first[0] == "HEAD")
-        } catch { respond(connection, code: 502, body: Data()) }
+        } catch { traces[entry.2]?.finish(traceID,now:ProcessInfo.processInfo.systemUptime,status:0,isManifest:knownManifest,body:Data());respond(connection,code:502,body:Data()) }
     }
     func rewrite(_ manifest: String, base: URL, owner: String = "") throws -> String {
         let regex = try NSRegularExpression(pattern: "URI=\"([^\"]+)\"")
@@ -211,5 +215,5 @@ import Network
         var output = Data((h + "\r\n").utf8); if !head { output.append(body) }
         connection.send(content: output, completion: .contentProcessed { _ in connection.cancel() })
     }
-    func stop() { finishStart(.failure(FusionError("播放器已关闭"))); listener?.cancel(); listener = nil; for pipe in pipes.values {pipe.cancel()};pipes.removeAll(); for c in connections.values { c.cancel() }; connections.removeAll();activeRequests.removeAll(); urls.removeAll(); reverse.removeAll(); voice.removeAll(); voiceStatus.removeAll(); fragmented.removeAll();owners.removeAll(); port = 0 }
+    func stop() { finishStart(.failure(FusionError("播放器已关闭"))); listener?.cancel(); listener = nil; for pipe in pipes.values {pipe.cancel()};pipes.removeAll(); for c in connections.values { c.cancel() }; connections.removeAll();activeRequests.removeAll(); urls.removeAll(); reverse.removeAll(); voice.removeAll(); voiceStatus.removeAll(); fragmented.removeAll();owners.removeAll();traces.removeAll(); port = 0 }
 }
