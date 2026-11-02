@@ -30,6 +30,7 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         UIRequiresFullScreen: false
+        NSLocalNetworkUsageDescription: 连接同一网络中由你配对的二路随行电视接收端，控制播放、延迟、音量和弹幕。
         UIBackgroundModes: [audio]
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false

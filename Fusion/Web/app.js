@@ -2,7 +2,7 @@
 'use strict';
 const SOURCES=['A','B','C'];
 const $=id=>document.getElementById(id),C=FusionCore,waiters=new Map();let sequence=0,generation=0,channels={},manualPaused=false,foreground=true,account={loggedIn:false},full=false;
-const qualityChoices={A:0,B:0,C:0},preferredDelays={A:0,B:0,C:0};let shareOffsets=null;let preferredDual=false,inVideoPiP=false;
+const qualityChoices={A:0,B:0,C:0},preferredDelays={A:0,B:0,C:0};let tvPreviewMuted=false;let shareOffsets=null;let preferredDual=false,inVideoPiP=false;
 let pipEnabled=false,pipBusy=false,aiVoiceMode=false,voiceFailure="";
 let hideTimer,frame=0,lastPump=0,historyCount=0,lastChatStats=0;
 const stage=$('stage'),bulletLayer=$('bullets'),cardLayer=$('cards'),lanes=new C.Lanes();
@@ -152,6 +152,7 @@ $('donationOpen').onclick=async()=>{
 };
 window.handleBack=()=>{
   if(messageMenu.close())return true;
+  if(window.tvController?.close())return true;
   if(window.fusionShareUI?.close())return true;
   if(blockPanel.close())return true;
   if($('donation').open){if(!$('donationWechatPanel').hidden)donationMethods();else $('donation').close();return true;}
@@ -273,13 +274,13 @@ class Channel{
     renderQuality(this);
     if(!source){this.renderStatus('直播线路失败，请重新连接');return;}
     if(!foreground){this.suspended=true;this.renderStatus('已暂停连接，点击继续恢复');return;}
-    this.media.volume=Number($('volume'+this.source).value)/100;
+    this.media.volume=tvPreviewMuted?0:Number($('volume'+this.source).value)/100;
     this.media.audioOnly=$('audioOnly'+this.source).checked;
     try{
       const revision=(this.mediaRevision||0)+1;this.mediaRevision=revision;
       this.media.open(source.url,source.type).then(()=>{if(!this.closed&&this.mediaRevision===revision){this.play();if(this.source==='A')void applyVoice();window.iosLayout();}}).catch(e=>{if(!this.closed&&this.mediaRevision===revision)this.fallback(e.message);});
     }catch(e){this.fallback(e.message);}
-    this.media.volume=Number($('volume'+this.source).value)/100;
+    this.media.volume=tvPreviewMuted?0:Number($('volume'+this.source).value)/100;
   }
   play(){
     if(this.closed||manualPaused||(!foreground&&!inVideoPiP&&$('backgroundMode').value==='pause')||performance.now()<this.holdUntil)return;
@@ -493,7 +494,7 @@ for(const id of ids)$(id).addEventListener('input',()=>{
   else if(id.startsWith('pip')){if(pipEnabled)void rpc('pipSettings',pipSettings()).catch(e=>notice(e.message,true));}
   else if(id==='voiceA'||id==='voiceStrength'){void applyVoice();}
   else if(id.startsWith('audioOnly')){if(typeof pipEnabled!=='undefined'&&pipEnabled&&id==='audioOnlyB')$('audioOnlyB').checked=true;applyAudioMode(id.slice(-1));}
-  else if(id.startsWith('volume')){const s=id.slice(-1);if(channels[s])channels[s].media.volume=Number($(id).value)/100;}
+  else if(id.startsWith('volume')){const s=id.slice(-1);if(channels[s])channels[s].media.volume=tvPreviewMuted?0:Number($(id).value)/100;}
   else if(id==='chatSpeed'){/* Scroll only: preserve position, media clocks and SC lifetime. */}
   else if(/^chat[ABC]$/.test(id)){if(!$(id).checked)clearSourceBullets(id.slice(-1));}
   else if(!/^sc[ABC]$/.test(id)){clearBullets();if(id==='marker'){cardLayer.replaceChildren();scNodes.clear();}}
@@ -637,6 +638,10 @@ window.fusionShareUI=FusionShareUI.mount({read:sharedRooms,apply:applySharedConf
  context:source=>channels[source]?messageContext(source):null,foreground:()=>foreground,
  busy:()=>sendingMessage,setBusy:value=>{sendingMessage=value;if(typeof updateCapabilities==='function')updateCapabilities();},
  canSend:context=>foreground&&context.generation===generation&&channels[context.source]?.epoch===context.epoch&&(!['','bilibili'].includes(context.platform)||account.loggedIn),uid:()=>account.uid,visibility:()=>sendVisibilityEpoch});
+
+window.tvController=FusionTV.mount({read:sharedRooms,rpc,restore:()=>{tvPreviewMuted=false;for(const c of Object.values(channels))c.media.volume=Number($('volume'+c.source).value)/100;},preview:on=>{tvPreviewMuted=true;
+ manualPaused=!on;for(const c of Object.values(channels)){c.media.volume=0;if(on)c.play();else c.media.pause();}if(!on)clearBullets();$('pause').textContent=manualPaused?'继续':'暂停';updatePlaybackService();
+}});
 
 })();
 

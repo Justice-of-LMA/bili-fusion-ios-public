@@ -191,6 +191,7 @@ import WebKit
         case "clipboardRead":
             let text=UIPasteboard.general.string ?? "";guard text.count<=16384 else{throw FusionError("剪贴板内容过长")};return ["text":text]
         case "messageLimit":return ["length":try await api.messageLimit(room:Safety.room(a.str("room")))]
+        case "tvRequest": guard !inBackground else{throw FusionError("请在前台手动控制电视")};return try await TvTransport.request(a)
         case "blockingGet": return BlockRules.load()
         case "blockingSet":
             let rules = BlockRules.save(a.obj("rules")); messagePiP.setBlocking(rules); return rules
