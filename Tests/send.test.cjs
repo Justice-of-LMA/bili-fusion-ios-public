@@ -18,7 +18,14 @@ test('stop or change room during the interval cancels the remaining target',asyn
  assert.equal(count,1);assert.equal(r[1].submitted,false);assert.match(r[1].error,/已取消/);
 });
 test('empty/oversized/invalid targets never reach the send callback',async()=>{
- for(const x of [[],[...targets,targets[0]],[{source:'C',room:'6'}],[{source:'A',room:'0'}],[{source:'A',room:'9007199254740992'}]]){
-  await assert.rejects(sendBatch(x,async()=>{throw Error('must not run');}),/目标|两个/);
+ for(const x of [[],[...targets,targets[0],targets[0]],[{source:'D',room:'6'}],[{source:'A',room:'0'}],[{source:'A',room:'9007199254740992'}]]){
+  await assert.rejects(sendBatch(x,async()=>{throw Error('must not run');}),/目标|三个/);
  }
 });
+
+test('three source delivery keeps C distinct and retains per-message cooldown',async()=>{
+ const sent=[],waits=[];const selected=[{source:'A',room:'6',platform:'bilibili'},{source:'B',room:'7777',platform:'bilibili'},{source:'C',room:'616',platform:'bilibili'}];
+ const result=await sendBatch(selected,async room=>{sent.push(room);return {submitted:true};},{wait:async ms=>waits.push(ms)});
+ assert.deepEqual(sent,['6','7777','616']);assert.equal(result.length,3);assert.deepEqual(waits,[5100,5100]);
+});
+
