@@ -368,7 +368,7 @@ function stop(){
   }
 }
 async function connect(){
-  stop();const gen=generation;$('connect').disabled=true;save();notice('正在读取两路直播…');
+  stop();const gen=generation;$('connect').disabled=true;save();notice('正在读取所选直播间…');
   try{
     const activeSources=selectedSources();
     const rooms=await Promise.all(activeSources.map(s=>rpc('resolve',{room:$('room'+s).value.trim(),platform:$('platform'+s).value,quality:qualityChoices[s],voice:s==='A'&&$('voiceA').checked}).catch(e=>{throw Error(s+' 房间：'+e.message);})));
@@ -482,7 +482,7 @@ $('refreshStreams').onclick=async()=>{
   if($('refreshStreams').disabled)return;
   const sources=Object.keys(channels);if(!sources.length){notice('请先开始融合');return;}
   $('refreshStreams').disabled=true;
-  try{await Promise.all(sources.map(source=>changeQuality(source,true)));notice('已手动刷新两路直播流；延迟、音量和弹幕设置保留。失败的一路保持原状态，请看其画质提示。');}
+  try{await Promise.all(sources.map(source=>changeQuality(source,true)));notice('已手动刷新所选直播流；延迟、音量和弹幕设置保留。失败的一路保持原状态，请看其画质提示。');}
   finally{$('refreshStreams').disabled=false;}
 };
 for(const id of ids)$(id).addEventListener('input',()=>{
@@ -511,7 +511,7 @@ $('pause').onclick=()=>{manualPaused=!manualPaused;if(manualPaused)clearBullets(
 $('live').onclick=()=>{
   clearBullets();manualPaused=false;$('pause').textContent='暂停';
   for(const c of Object.values(channels)){const r=ranges(c.media);if(r.length){c.media.currentTime=Math.max(r.at(-1)[0],r.at(-1)[1]-.7);c.timeline.seek(c.media.currentTime);}c.delay=0;preferredDelays[c.source]=0;save();c.holdUntil=0;$('delay'+c.source).value='0';$('delay'+c.source+'Value').textContent='0.0s';c.play();}
-  notice('回到当前可播放位置，额外延迟归零；两路仍可能有不同的原始直播延迟。');
+  notice('回到当前可播放位置，额外延迟归零；各路仍可能有不同的原始直播延迟。');
 };
 $('settingsToggle').onclick=()=>{$('settings').hidden=!$('settings').hidden;wake();};
 $('settingsClose').onclick=()=>{$('settings').hidden=true;wake();};
@@ -618,7 +618,7 @@ window.cleanView=window.FusionWebLayout?.mount({
  clear:()=>{clearBullets();cardLayer.replaceChildren();scNodes.clear();},
  rotate:()=>{const value=innerWidth>innerHeight?'portrait':'landscape';$('screenOrientation').value=value;save();void rpc('orientation',{value}).catch(e=>notice(e.message,true));},
  audio:(enter,snapshot,restoreMedia=true)=>{
-  for(const source of ['B','C']){const on=enter?true:snapshot['audioOnly'+source];$('audioOnly'+source).checked=on;const c=channels[source];if(c&&restoreMedia){if(window.IOSMedia&&!c.media.webMode)c.media.audioOnly=on;else if((c.media.webMode?!!c.media.audioOnly:c.media.tagName==='AUDIO')!==on){if(c.media.webMode)c.media._audioOnly=on;c.open();}}}setDual(enter?false:snapshot.dual);
+  for(const source of ['A','B','C']){const on=enter?source!=='A':snapshot['audioOnly'+source];$('audioOnly'+source).checked=on;const c=channels[source];if(c&&restoreMedia){if(window.IOSMedia&&!c.media.webMode)c.media.audioOnly=on;else if((c.media.webMode?!!c.media.audioOnly:c.media.tagName==='AUDIO')!==on){if(c.media.webMode)c.media._audioOnly=on;c.open();}}}setDual(enter?false:snapshot.dual);
  }
 });
 function shareRoomId(platform,input){if(!input||/^[A-Za-z0-9_-]{1,80}$/.test(input))return input;try{const url=new URL(input);if(platform==='douyin'&&url.searchParams.get('live_web_rid'))return url.searchParams.get('live_web_rid');const room=url.pathname.split('/').filter(Boolean).at(-1)||'';if(/^[A-Za-z0-9_-]{1,80}$/.test(room))return room;}catch{}throw Error('请使用有效房间号或直播间链接');}

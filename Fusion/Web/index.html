@@ -9,14 +9,14 @@
 <div class="room-slot"><label for="roomA"><span class="badge a">A</span> 主直播间</label><select id="platformA" aria-label="A 平台"><option value="bilibili">B站</option><option value="huya">虎牙</option><option value="douyu">斗鱼</option></select><input id="roomA" autocomplete="off" placeholder="直播间号 / 所选平台链接" inputmode="url" value="6"><button id="followA" class="follow-trigger">从关注中选择</button><div id="previewA" class="room-preview" aria-live="polite"><p>输入后显示房间信息</p></div></div>
 <div class="room-slot"><label for="roomB"><span class="badge b">B</span> 二路直播间</label><select id="platformB" aria-label="B 平台"><option value="bilibili">B站</option><option value="huya">虎牙</option><option value="douyu">斗鱼</option></select><input id="roomB" autocomplete="off" placeholder="直播间号 / 所选平台链接" inputmode="url" value="7777"><button id="followB" class="follow-trigger">从关注中选择</button><div id="previewB" class="room-preview" aria-live="polite"><p>输入后显示房间信息</p></div></div>
 </div><div class="actions"><button class="primary" id="connect">开始融合</button><button id="pip">二路消息画中画</button><button id="stop" disabled>停止</button></div>
-<p id="notice" role="status">在 App 内融合 A / B，或只填 B 后打开消息画中画。画中画默认关闭，手动开启后可配合其他视频 App 观看。</p></section>
+<p id="notice" role="status">在 App 内融合 A / B / C（C 可选），或只填 B 后打开消息画中画。画中画默认关闭，手动开启后可配合其他视频 App 观看。</p></section>
 <section id="stage">
 <div id="viewA" class="video-view"><video id="videoA" playsinline disablepictureinpicture></video>
 <div id="placeholder"><span>二路，自由组合</span><p>在这里看主画面，听你喜欢的解说</p></div>
 <div id="bullets"></div><div id="cards"></div>
 <span class="view-label">A 主直播间</span></div>
 <div id="viewB" class="video-view" aria-hidden="true"><video id="videoB" playsinline disablepictureinpicture></video><span class="view-label">B 二路直播间</span></div>
-<div id="streamTools" class="stage-controls"><button id="refreshStreams" type="button" title="手动刷新两路直播流，保留延迟与音量">刷新两路</button></div>
+<div id="streamTools" class="stage-controls"><button id="refreshStreams" type="button" title="手动刷新两路直播流，保留延迟与音量">刷新所选</button></div>
 <div id="stageMenu" class="stage-controls"><button id="pause" disabled>暂停</button><button id="live" disabled>回到直播</button><button id="dual" aria-pressed="false">双画面</button><button id="settingsToggle">设置</button><button id="full">全屏</button><button id="rotateScreen" type="button">切横屏</button><button id="videoPiP" type="button">视频小窗</button></div>
 <button id="wake" aria-label="显示播放器操作">···</button>
 <aside id="settings" hidden>
@@ -63,8 +63,8 @@
 <form id="composer" class="stage-controls"><select id="target" aria-label="发送目标"><option value="B">发送 B</option><option value="A">发送 A</option></select><input id="message" autocomplete="off" maxlength="80" placeholder="发个弹幕吧（最多 40 字）"><button id="send" type="submit">发送</button><button id="sendBoth" type="button" title="分别向 A、B 提交，中间间隔 5 秒" aria-label="双发到 A 和 B 直播间">双发</button></form>
 </section>
 <section class="card status"><div><span class="badge a">A</span><strong id="titleA">主直播间</strong><p id="statusA">尚未连接</p></div><div><span class="badge b">B</span><strong id="titleB">二路直播间</strong><p id="statusB">尚未连接</p></div></section>
-<section id="normalHistory" class="card"><div class="history-title"><h2>消息记录</h2><button id="historyClear">清空显示</button></div><div id="history"><p class="hint">A / B 消息会随播放进度出现在这里。</p></div></section>
-<details class="card help"><summary>使用说明与隐私</summary><p>① 在官方页面登录 → ② 填入 A / B → ③ 开始融合 → ④ 需要时调整音量和延迟。</p><p>消息发送结果“已提交”仅表示接口接受，不保证所有观众可见；超时不会自动重发。遇到 -352 / -412，请在官方房间页完成验证，不会绕过限制。</p><p>登录 Cookie 仅存本机。直播、弹幕、SC 直接访问 B站及其 CDN，不经过开发者服务器；无云端音频处理、无录音、无悬浮权限、无广告分析。退出登录可在登录页清除本 App 的会话。</p><p>额外延迟默认 0；观看设置只保存在本机。首版切后台暂停，不提供后台保活。支持 iOS / iPadOS 16 及以上，使用系统原生播放器；仅播放该房间实际提供的 H.264 / HLS 线路。</p><p>本软件不是 B站官方应用；内容权利归相应权利人。<a href="licenses.html">开源许可与参考说明</a></p></details>
+<section id="normalHistory" class="card"><div class="history-title"><h2>消息记录</h2><button id="historyClear">清空显示</button></div><div id="history"><p class="hint">A / B / C 消息会随播放进度出现在这里。</p></div></section>
+<details class="card help"><summary>使用说明与隐私</summary><p>① 在官方页面登录 → ② 填入 A / B / C（C 可选） → ③ 开始融合 → ④ 需要时调整音量和延迟。</p><p>消息发送结果“已提交”仅表示接口接受，不保证所有观众可见；超时不会自动重发。遇到 -352 / -412，请在官方房间页完成验证，不会绕过限制。</p><p>登录 Cookie 仅存本机。直播、弹幕、SC 直接访问 B站及其 CDN，不经过开发者服务器；无云端音频处理、无录音、无悬浮权限、无广告分析。退出登录可在登录页清除本 App 的会话。</p><p>额外延迟默认 0；观看设置只保存在本机。首版切后台暂停，不提供后台保活。支持 iOS / iPadOS 16 及以上，使用系统原生播放器；仅播放该房间实际提供的 H.264 / HLS 线路。</p><p>本软件不是 B站官方应用；内容权利归相应权利人。<a href="licenses.html">开源许可与参考说明</a></p></details>
 <footer><span>开发者：B站 @夙潮夜汐</span><button id="donate">打赏</button></footer>
 </main>
 <dialog id="donation"><h2 id="donationTitle">制作不易TvT，是否打赏作者？</h2>
