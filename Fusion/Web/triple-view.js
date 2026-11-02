@@ -1,7 +1,7 @@
 /* Add a third independent source while retaining the original controls and listeners. */
 (()=>{'use strict';const $=id=>document.getElementById(id);
 function clone(node){const c=node.cloneNode(true);for(const e of [c,...c.querySelectorAll('*')]){for(const a of ['id','for'])if(e.hasAttribute(a))e.setAttribute(a,e.getAttribute(a).replace(/B/g,'C'));if(e.classList.contains('badge')){e.classList.remove('b');e.classList.add('c');}if(e.hasAttribute('aria-label'))e.setAttribute('aria-label',e.getAttribute('aria-label').replace(/B|二路/g,'C'));}
- const walk=document.createTreeWalker(c,NodeFilter.SHOW_TEXT);while(walk.nextNode())walk.currentNode.textContent=walk.currentNode.textContent.replace(/\bB\b/g,'C').replace(/二路直播间/g,'第三路直播间');return c;}
+ const walk=document.createTreeWalker(c,NodeFilter.SHOW_TEXT);while(walk.nextNode())walk.currentNode.textContent=walk.currentNode.textContent.replace(/\bB\b(?!站)/g,'C').replace(/二路直播间/g,'第三路直播间');return c;}
 const room=clone($('roomB').closest('.room-slot'));$('roomB').closest('.room-slot').after(room);$('roomC').value='';$('previewC').textContent='可选第三路';
 $('roomCLabel')?.replaceChildren('第三路直播间');
 for(const s of ['A','B','C']){const label=$('room'+s).closest('.room-slot').querySelector('label'),e=document.createElement('input');e.id='enabled'+s;e.type='checkbox';e.checked=s!=='C';e.setAttribute('aria-label','启用 '+s);label.prepend(e);}
