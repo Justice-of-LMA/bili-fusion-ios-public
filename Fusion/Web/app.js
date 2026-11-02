@@ -636,7 +636,7 @@ async function applySharedConfig(rooms,start=false){
 window.fusionShareUI=FusionShareUI.mount({read:sharedRooms,apply:applySharedConfig,rpc,notice,collector:shareCollector,
  context:source=>channels[source]?messageContext(source):null,foreground:()=>foreground,
  busy:()=>sendingMessage,setBusy:value=>{sendingMessage=value;if(typeof updateCapabilities==='function')updateCapabilities();},
- canSend:context=>foreground&&context.generation===generation&&channels[context.source]?.epoch===context.epoch&&(!['','bilibili'].includes(context.platform)||account.loggedIn),uid:()=>account.uid});
+ canSend:context=>foreground&&context.generation===generation&&channels[context.source]?.epoch===context.epoch&&(!['','bilibili'].includes(context.platform)||account.loggedIn),uid:()=>account.uid,visibility:()=>sendVisibilityEpoch});
 
 })();
 
