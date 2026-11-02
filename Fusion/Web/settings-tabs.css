@@ -1,0 +1,12 @@
+#settings[data-categorized]{display:flex;flex-direction:column;overflow:hidden;padding:10px;gap:9px}
+#settings[data-categorized][hidden]{display:none}
+#settings[data-categorized]>.settings-title{position:static;padding:0 0 3px;flex:none;background:transparent}
+.settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;flex:none;padding-bottom:9px;border-bottom:1px solid #36516b}
+.settings-tabs button{font-size:12px;min-height:38px;padding:8px 4px;background:#20344c;color:#bcd1e6}
+.settings-tabs button[aria-selected=true]{background:#24566a;border-color:#67d9ec;color:#e5fbff;font-weight:700}
+.settings-content{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:0 3px 12px}
+.settings-panel[hidden]{display:none!important}
+#settings .settings-panel>h3:first-child{margin-top:3px}
+#settings .settings-panel>button{max-width:100%;margin:3px 0;white-space:normal}
+#settings .settings-panel .actions{margin:8px 0}
+@media (min-height:600px){.settings-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}

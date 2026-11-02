@@ -9,8 +9,8 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     TARGETED_DEVICE_FAMILY: "1,2"
     CODE_SIGNING_ALLOWED: NO
-    MARKETING_VERSION: "0.3.0"
-    CURRENT_PROJECT_VERSION: "18"
+    MARKETING_VERSION: "0.3.1"
+    CURRENT_PROJECT_VERSION: "19"
 targets:
   Fusion:
     type: application
@@ -30,6 +30,7 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         UIRequiresFullScreen: false
+        NSCameraUsageDescription: 扫描电视接收端的二维码，自动填写电视地址和配对码。画面仅在本机识别。
         NSLocalNetworkUsageDescription: 连接同一网络中由你配对的二路随行电视接收端，控制播放、延迟、音量和弹幕。
         UIBackgroundModes: [audio]
         UIApplicationSceneManifest:

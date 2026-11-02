@@ -10,7 +10,7 @@ window.FusionShareUI={mount(h){
  function tab(name){dialog.querySelectorAll('[data-panel]').forEach(e=>e.hidden=e.dataset.panel!==name);dialog.querySelectorAll('[data-tab]').forEach(e=>e.classList.toggle('selected',e.dataset.tab===name));message('');}
  function close(){dialog.close();}
  function preview(){imported=null;$('[data-action=apply]').disabled=true;try{imported=FusionShare.decode($('#shareImportCode').value);summary($('.share-import-summary'),imported);$('[data-action=apply]').disabled=false;message('请核对房间与延迟后应用。');}catch(e){$('.share-import-summary').replaceChildren();message(e.message,true);}}
- function open(initial=''){if(running){if(!dialog.open)dialog.showModal();return;}ticket++;imported=null;tab(initial?'import':'export');$('[data-action=apply]').disabled=true;$('#shareImportCode').value=initial;$('.share-import-summary').replaceChildren();try{const rooms=h.read();current=FusionShare.encode(rooms);$('#shareExportCode').value=current;summary($('.share-summary'),rooms);}catch(e){current='';$('#shareExportCode').value='';$('.share-summary').replaceChildren();message(e.message,true);}
+ function open(initial='',mode='export'){if(running){if(!dialog.open)dialog.showModal();return;}ticket++;imported=null;tab(initial||mode==='import'?'import':'export');$('[data-action=apply]').disabled=true;$('#shareImportCode').value=initial;$('.share-import-summary').replaceChildren();try{const rooms=h.read();current=FusionShare.encode(rooms);$('#shareExportCode').value=current;summary($('.share-summary'),rooms);}catch(e){current='';$('#shareExportCode').value='';$('.share-summary').replaceChildren();message(e.message,true);}
   const targets=$('.share-targets');targets.replaceChildren();for(const source of ['A','B','C']){const context=h.context(source),label=d.createElement('label'),input=d.createElement('input');input.type='checkbox';input.value=source;input.disabled=!context;input.checked=source==='B'&&!!context;const text=d.createElement('span');text.textContent=source+' · '+(context?names[context.platform]+' '+context.room:'尚未连接');label.append(input,text);targets.append(label);}if(!targets.querySelector('input:checked')){const first=targets.querySelector('input:not(:disabled)');if(first)first.checked=true;}
   if(!dialog.open)dialog.showModal();if(initial)preview();
  }
@@ -35,7 +35,8 @@ window.FusionShareUI={mount(h){
   finally{running=false;h.setBusy(false);toastStop.hidden=true;toastTimer=setTimeout(()=>toast.hidden=true,8000);$('[data-action=send]').disabled=false;$('[data-action=cancel]').hidden=true;}
  };
  $('textarea').spellcheck=false;d.getElementById('shareConfig').onclick=()=>open();d.getElementById('shareFromPlayer').onclick=()=>open();
- return {open,isRunning:()=>running,close:()=>dialog.open?(close(),true):false,collector};
+ const importButton=d.createElement('button');importButton.id='shareImport';importButton.type='button';importButton.textContent='分享码配置';importButton.onclick=()=>open('','import');d.querySelector('.setup>.actions').append(importButton);
+ return {open,openImport:()=>open('','import'),isRunning:()=>running,close:()=>dialog.open?(close(),true):false,collector};
 }};
 })();
 
