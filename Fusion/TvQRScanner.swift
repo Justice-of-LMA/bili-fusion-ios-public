@@ -10,12 +10,12 @@ enum TvPairCode {
  }
 }
 
-@MainActor final class TvQRScanner:UIViewController,AVCaptureMetadataOutputObjectsDelegate {
+@MainActor final class TvQRScanner:UIViewController,@preconcurrency AVCaptureMetadataOutputObjectsDelegate {
  private let session=AVCaptureSession(),queue=DispatchQueue(label:"fusion.tv.qr.camera"),label=UILabel()
  private var layer:AVCaptureVideoPreviewLayer?,finished=false,completion:((JSON)->Void)?
  static func scan(from host:UIViewController)async throws->JSON {
   guard host.presentedViewController==nil else{throw FusionError("请先关闭当前窗口")}
-  let allowed=AVCaptureDevice.authorizationStatus(for:.video)==.authorized ? true:await AVCaptureDevice.requestAccess(for:.video)
+  let allowed=AVCaptureDevice.authorizationStatus(for:.video) == .authorized ? true:await AVCaptureDevice.requestAccess(for:.video)
   guard allowed else{throw FusionError("未允许相机，可在电视投屏中手动输入地址和配对码")}
   return await withCheckedContinuation{continuation in let scanner=TvQRScanner();scanner.modalPresentationStyle = .fullScreen;scanner.completion={continuation.resume(returning:$0)};host.present(scanner,animated:true)}
  }
