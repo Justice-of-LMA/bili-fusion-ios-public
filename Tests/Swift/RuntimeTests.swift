@@ -31,11 +31,12 @@ final class RuntimeTests: XCTestCase {
         throw FusionError("Web runtime test timed out")
     }
     @MainActor func testBundledWebFullscreenControlsAndBridge() async throws {
-        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.3.2" : "0.2.5")
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.3.3" : "0.2.6")
         let web = try appWeb()
         try await waitFor(web, "typeof receiveNative === 'function' && !!document.getElementById('full')")
         let title = try await web.evaluateJavaScript("document.title") as? String
         XCTAssertEqual(title, "二路随行")
+        try await waitFor(web, "typeof window.FusionWebLayout?.mount === 'function' && !!document.getElementById('webLayoutToggle')")
         // Native bridge is exercised by the real WK custom-origin main frame.
         _ = try await web.evaluateJavaScript("document.getElementById('full').click(); true")
         try await waitFor(web, "document.body.classList.contains('full')")
