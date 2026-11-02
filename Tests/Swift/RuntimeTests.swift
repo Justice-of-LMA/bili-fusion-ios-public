@@ -31,7 +31,7 @@ final class RuntimeTests: XCTestCase {
         throw FusionError("Web runtime test timed out")
     }
     @MainActor func testBundledWebFullscreenControlsAndBridge() async throws {
-        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.4.1" : "0.3.1")
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.4.2" : "0.3.2")
         let web = try appWeb()
         try await waitFor(web, "typeof receiveNative === 'function' && !!document.getElementById('full')")
         let title = try await web.evaluateJavaScript("document.title") as? String
@@ -49,9 +49,11 @@ final class RuntimeTests: XCTestCase {
         let target = try await web.evaluateJavaScript("document.getElementById('target').value") as? String
         XCTAssertEqual(target, "B")
         let maxDelay = try await web.evaluateJavaScript("document.getElementById('delayA').max") as? String
-        XCTAssertEqual(maxDelay, "20")
+        XCTAssertEqual(maxDelay, "60")
         let transparent = try await web.evaluateJavaScript("getComputedStyle(document.getElementById('stage')).backgroundColor") as? String
         XCTAssertEqual(transparent, "rgba(0, 0, 0, 0)")
+        let clean = try await web.evaluateJavaScript("getComputedStyle(document.querySelector('.setup')).visibility==='hidden' && getComputedStyle(document.getElementById('normalHistory')).visibility==='hidden'") as? Bool
+        XCTAssertEqual(clean,true,"Home cards must not paint over the transparent native fullscreen player")
         let before = web.window?.rootViewController?.prefersStatusBarHidden
         XCTAssertEqual(before, true)
         _ = try await web.evaluateJavaScript("document.getElementById('dual').click(); document.getElementById('full').click(); true")
@@ -294,4 +296,15 @@ final class RuntimeTests: XCTestCase {
         let controller=try XCTUnwrap(delegate.window?.rootViewController as? FusionController)
         XCTAssertEqual(Set(controller.lifecycleState().obj("players").keys),Set(["A","B","C"]))
     }
+    @MainActor func testSignedTimingAndVideoCategoryInRealWKWebView() async throws {
+        let web=try appWeb();try await waitFor(web,"window.__fusionUIReady===true && !!window.FusionOffsets")
+        let result=try await web.evaluateJavaScript("""
+        (()=>{const r=FusionOffsets.normalize({A:-3.2,B:-1.2,C:0},{A:true,B:true,C:true});
+        return r.A===0&&r.B===2&&r.C===3.2&&document.getElementById('delayC').min==='-60'&&
+        document.querySelectorAll('#offsetC').length===1&&document.getElementById('offsetC').parentNode.querySelectorAll('button').length===4&&
+        ['audioOnlyA','audioOnlyB','audioOnlyC','audioBC'].every(id=>document.getElementById('settings-panel-video').contains(document.getElementById(id)))})()
+        """) as? Bool
+        XCTAssertEqual(result,true)
+    }
+
 }

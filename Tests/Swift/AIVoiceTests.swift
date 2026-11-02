@@ -36,12 +36,12 @@ final class AIVoiceTests: XCTestCase {
                 var planes=[l.baseAddress,r.baseAddress]
                 return fusion_ai_pcm(&planes,count,Int32(rate),2,1)
             }}
-            XCTAssertEqual(status,1,VoiceSegment.aiDetail);XCTAssertEqual(left.count,count);XCTAssertTrue(left.allSatisfy{$0.isFinite&&abs($0)<=1})
+            XCTAssertEqual(status,1,VoiceSegment.aiDetail);XCTAssertEqual(left.count,count);XCTAssertTrue(left.allSatisfy{$0.isFinite&&abs($0)<=0.901})
             XCTAssertGreaterThan(zip(original,left).map{abs($0-$1)}.reduce(0,+),0.001,"Test actual model output, not an unchanged placeholder")
             let off=originalCopy.withUnsafeMutableBufferPointer { p -> Int32 in var planes=[p.baseAddress];return fusion_ai_pcm(&planes,count,Int32(rate),1,0) }
             XCTAssertEqual(off,0);XCTAssertEqual(originalCopy,original)
         }
-        XCTAssertTrue(VoiceSegment.aiDetail.contains("GTCRN local CPU"))
+        XCTAssertTrue(VoiceSegment.aiDetail.contains("GTCRN + peak guard local CPU"))
     }
     func testIndependentSegmentsHaveRepeatableWarmupAndBoundedFailure() throws {
         try enabled()
@@ -69,4 +69,16 @@ final class AIVoiceTests: XCTestCase {
         let mono=VoiceSegment.process(monoData,strength:1);XCTAssertEqual(mono.1,1,"Model edition also supports mono AAC")
         XCTAssertEqual(VoiceSegment.process(Data(repeating:0,count:64),strength:1).0,Data(repeating:0,count:64))
     }
+    func testLoudResidualIsFinitePeakBoundedAndZeroStrengthUnchanged() throws {
+        try enabled()
+        var left=(0..<16000).map { i in Float(1.1*sin(Double(i)*0.23)+0.3*sin(Double(i)*2.3)) }
+        var right=left.map{$0*0.8};let count=left.count
+        let result=left.withUnsafeMutableBufferPointer { l in right.withUnsafeMutableBufferPointer { r -> Int32 in var planes=[l.baseAddress,r.baseAddress];return fusion_ai_pcm(&planes,count,16000,2,1) }}
+        XCTAssertEqual(result,1,VoiceSegment.aiDetail)
+        XCTAssertTrue((left+right).allSatisfy{$0.isFinite && abs($0)<=0.901})
+        let original=left
+        let off=left.withUnsafeMutableBufferPointer { p -> Int32 in var planes=[p.baseAddress];return fusion_ai_pcm(&planes,count,16000,1,0) }
+        XCTAssertEqual(off,0);XCTAssertEqual(left,original)
+    }
+
 }

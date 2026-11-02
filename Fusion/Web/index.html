@@ -3,7 +3,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.hdslb.com https://*.biliimg.com https://*.msstatic.com https://*.douyucdn.cn https://*.douyucdn2.cn; media-src 'self' blob: http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:*; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>二路随行</title><link rel="stylesheet" href="app.css"><link rel="stylesheet" href="web-layout.css"><link rel="stylesheet" href="triple-view.css"><link rel="stylesheet" href="ios.css">
 <link rel="stylesheet" href="settings-tabs.css"></head><body>
-<header><div class="logo">融</div><div><h1>二路随行 <small>iOS 0.3.1</small></h1><p>画面、解说、弹幕，同一处观看</p></div><button id="login">账号 / 登录</button></header>
+<header><div class="logo">融</div><div><h1>二路随行 <small>iOS 0.3.2</small></h1><p>画面、解说、弹幕，同一处观看</p></div><button id="login">账号 / 登录</button></header>
 <main>
 <section class="setup card"><div class="rooms">
 <div class="room-slot"><label for="roomA"><span class="badge a">A</span> 主直播间</label><select id="platformA" aria-label="A 平台"><option value="bilibili">B站</option><option value="huya">虎牙</option><option value="douyu">斗鱼</option></select><input id="roomA" autocomplete="off" placeholder="直播间号 / 所选平台链接" inputmode="url" value="6"><button id="followA" class="follow-trigger">从关注中选择</button><div id="previewA" class="room-preview" aria-live="polite"><p>输入后显示房间信息</p></div></div>
@@ -30,12 +30,12 @@
 <h3>播放与后台</h3><label>后台行为<select id="backgroundMode"><option value="audio" selected>继续播放声音</option><option value="pause">暂时暂停，返回继续</option></select></label><label>屏幕方向<select id="screenOrientation"><option value="auto">跟随系统</option><option value="landscape">固定横屏</option><option value="portrait">固定竖屏</option></select></label><p class="hint">横竖屏按钮直接切换，不依赖传感器权限。返回桌面不等于停止；视频小窗需手动开启。系统强制停止或清理后需重新打开。点击画面空白处隐藏或唤回操作。</p>
 <h3>声音与同步</h3><label class="audio-mode"><span id="voiceModeLabel">A 解说人声减弱</span><input id="voiceA" type="checkbox"></label><label>减弱强度<input id="voiceStrength" type="range" min="0" max="100" value="80"><output id="voiceStrengthValue">80%</output></label><button id="voiceApply">应用人声设置并手动重新获取 A</button><p id="voiceModeHint" class="hint">开启后按后续缓冲片段生效；B站若使用不支持的分片 MP4，请点上方按钮改取 TS。此手动操作保留 A 延迟，B 不变。不是 AI 分离，居中游戏音效也可能减弱。</p><p id="voiceStatus" class="hint">默认关闭。本机减弱立体声居中的解说，也可能削弱居中的游戏音效；不是 AI 分离。二路不变。</p>
 <label class="audio-mode"><span>B 仅播放音频</span><input id="audioOnlyB" type="checkbox"></label>
-<p id="audioModeHint" class="hint">开启后只听二路声音，弹幕与 SC 仍然显示；要看二路画面时可点“双画面”。不保证减少网络流量。</p>
+<p id="audioModeHint" class="hint">仅音频只关闭对应一路的视频解码，弹幕与 SC 保留；A/B/C 可分别设置。网络流量取决于平台提供的直播流。</p>
 <label>A 音量<input id="volumeA" type="range" min="0" max="100" step="1" value="50"><output id="volumeAValue">50%</output></label>
 <label>B 音量<input id="volumeB" type="range" min="0" max="100" step="1" value="50"><output id="volumeBValue">50%</output></label>
 <label>A 额外延迟<input id="delayA" type="range" min="0" max="20" step="0.1" value="0"><output id="delayAValue">0.0s</output></label>
 <label>B 额外延迟<input id="delayB" type="range" min="0" max="20" step="0.1" value="0"><output id="delayBValue">0.0s</output></label>
-<p class="hint">拖动预览，松手应用。增加 A 延迟会同步延迟 A 画面、声音和消息；B 同理。范围 0–20 秒。</p>
+<p class="hint">与 PC 共用相对偏移：−60 至 +60 秒，精度 0.1 秒；负数会相应增加其他路的实际延迟。实际缓冲差最多 60 秒，三路画面、声音和消息一起调整。</p>
 <h3>弹幕接收与显示</h3><p id="chatStatsA">A · 已接收 0 条 · 已显示 0 条</p><p id="chatStatsB">B · 已接收 0 条 · 已显示 0 条</p><p class="hint">显示数只计实际进入画面的普通弹幕；屏蔽、轨道拥挤或等待同步时可小于接收数。</p>
 <h3>弹幕与醒目留言</h3>
 <label>SC 位置<select id="scCorner"><option value="bottom-left">左下角</option><option value="top-left">左上角</option><option value="bottom-right">右下角</option><option value="top-right">右上角</option></select></label>
@@ -43,13 +43,13 @@
 <div class="toggles"><label><input id="chatA" type="checkbox" checked>A 弹幕</label><label><input id="chatB" type="checkbox" checked>B 弹幕</label><label><input id="scA" type="checkbox" checked>A 醒目留言</label><label><input id="scB" type="checkbox" checked>B 醒目留言</label><label><input id="nonOverlap" type="checkbox" checked>不重叠模式</label><label><input id="mergeSame" type="checkbox">合并相同弹幕</label><label><input id="user" type="checkbox">显示发言者</label><label><input id="original" type="checkbox">原始颜色</label></div>
 <label>显示范围<select id="chatArea"><option value="25">四分之一屏（25%）</option><option value="50">半屏（50%）</option><option value="75" selected>四分之三屏（75%）</option><option value="100">全屏（100%）</option></select></label>
 <label>最多行数<input id="maxRows" type="range" min="1" max="20" step="1" value="11"><output id="maxRowsValue">11 行</output></label>
-<p class="hint">范围按 A 播放区域的高度计算，行数只控制密度；弹幕在所选范围内轮流排布。字号较大时自动减少行数，文字和表情不越界。两路共用轨道，开关 A/B 弹幕不会改变范围；SC 单独显示。</p>
+<p class="hint">范围按 A 播放区域的高度计算，行数只控制密度；弹幕在所选范围内轮流排布。字号较大时自动减少行数，文字和表情不越界。三路共用轨道，开关 A/B/C 弹幕不会改变范围；SC 单独显示。</p>
 <label>字号<input id="size" type="range" min="14" max="32" value="20"><output id="sizeValue">20px</output></label>
 <label>弹幕速度<input id="chatSpeed" type="range" min="0.5" max="2" step="0.1" value="1"><output id="chatSpeedValue">1.0 倍</output></label>
 <label>透明度<input id="opacity" type="range" min="20" max="100" value="60"><output id="opacityValue">60%</output></label>
 <label>字体<select id="font"><option value="sans-serif">系统黑体</option><option value="serif">衬线字体</option><option value="monospace">等宽字体</option></select></label>
 <label>正文颜色<input id="color" type="color" value="#ffffff"></label>
-<label>来源标记<select id="marker"><option value="dot">双色圆点</option><option value="pill">A / B 胶囊</option><option value="none">不显示</option></select></label>
+<label>来源标记<select id="marker"><option value="dot">来源圆点</option><option value="pill">A / B / C 胶囊</option><option value="shape">三角 / 方块 / 圆圈</option><option value="none">不显示</option></select></label>
 <div class="actions"><button id="reconnect">重连消息</button><button id="verify">验证 / 补全表情</button></div>
 <p class="hint">验证按钮打开当前发送目标的官方房间页。账号、风控验证及缺失的房间表情可在该页处理。</p>
 <h3>二路消息画中画</h3>
@@ -60,7 +60,7 @@
 <button id="pipSettingsToggle">开启消息画中画</button><p id="pipStatus" class="hint" role="status">未开启。开启后可切到其他视频 App；窗口大小、位置和关闭由系统管理。</p>
 </aside>
 <p id="sendResult" role="status" aria-live="polite" hidden></p>
-<form id="composer" class="stage-controls"><select id="target" aria-label="发送目标"><option value="B">发送 B</option><option value="A">发送 A</option></select><input id="message" autocomplete="off" maxlength="80" placeholder="发个弹幕吧（最多 40 字）"><button id="send" type="submit">发送</button><button id="sendBoth" type="button" title="分别向 A、B 提交，中间间隔 5 秒" aria-label="双发到 A 和 B 直播间">双发</button></form>
+<form id="composer" class="stage-controls"><select id="target" aria-label="发送目标"><option value="B">发送 B</option><option value="A">发送 A</option></select><input id="message" autocomplete="off" maxlength="80" placeholder="发个弹幕吧（最多 40 字）"><button id="send" type="submit">发送</button><button id="sendBoth" type="button" title="选择 A/B/C 直播间，逐路提交，中间间隔 5 秒" aria-label="选择 A/B/C 发送直播间">多路</button></form>
 </section>
 <section class="card status"><div><span class="badge a">A</span><strong id="titleA">主直播间</strong><p id="statusA">尚未连接</p></div><div><span class="badge b">B</span><strong id="titleB">二路直播间</strong><p id="statusB">尚未连接</p></div></section>
 <section id="normalHistory" class="card"><div class="history-title"><h2>消息记录</h2><button id="historyClear">清空显示</button></div><div id="history"><p class="hint">A / B / C 消息会随播放进度出现在这里。</p></div></section>
@@ -78,4 +78,4 @@
 <p class="hint">使用本 App 的 B站登录状态。只在你打开、刷新或加载下一页时读取，不自动遍历关注列表。</p>
 <div class="actions"><button id="followingLogin">登录 B站</button><button id="followingRefresh">刷新</button></div>
 <p id="followingState" role="status"></p><div id="followingList"></div><button id="followingMore" hidden>加载下一页</button></dialog>
-<aside id="legal" hidden><button id="legalClose">关闭许可说明</button><pre id="legalText"></pre></aside><script src="core.js"></script><script src="vendor/mpegts.js"></script><script src="voice-reducer.js"></script><script src="ios-media.js"></script><script src="sc-layout.js"></script><script src="blocking.js"></script><script src="blocking-ui.js"></script><script src="danmaku-common.js"></script><script src="video-zoom.js"></script><script src="web-layout.js"></script><script src="triple-view.js"></script><script src="share-alphabet.js"></script><script src="fusion-share.js"></script><script src="share-ui.js"></script><script src="tv-control.js"></script><script src="app.js"></script><script src="settings-tabs.js"></script></body></html>
+<aside id="legal" hidden><button id="legalClose">关闭许可说明</button><pre id="legalText"></pre></aside><script src="core.js"></script><script src="vendor/mpegts.js"></script><script src="voice-reducer.js"></script><script src="ios-media.js"></script><script src="sc-layout.js"></script><script src="blocking.js"></script><script src="blocking-ui.js"></script><script src="danmaku-common.js"></script><script src="video-zoom.js"></script><script src="web-layout.js"></script><script src="triple-view.js"></script><script src="share-alphabet.js"></script><script src="fusion-share.js"></script><script src="share-ui.js"></script><script src="tv-control.js"></script><script src="send-targets.js"></script><script src="time-offsets.js"></script><script src="app.js"></script><script src="settings-tabs.js"></script></body></html>

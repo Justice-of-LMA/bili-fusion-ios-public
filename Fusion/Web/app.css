@@ -74,3 +74,10 @@ body.video-pip header,body.video-pip .setup,body.video-pip footer{display:none!i
 body.video-pip #settings,body.video-pip .stage-controls,body.video-pip #wake{display:none!important}
 @media(max-width:500px){#stageMenu{gap:3px}#stageMenu button{font-size:11px;padding:4px 6px;min-height:32px}}
 body.video-pip #viewA{inset:0!important;width:100%!important;height:100%!important}body.video-pip #viewB{display:none!important}
+
+.offset-controls{display:flex;align-items:center;gap:6px;margin:0 0 14px;flex-wrap:wrap}.offset-controls button{min-height:36px;padding:5px 9px}.offset-controls input[type=number]{width:78px!important;min-height:36px;padding:6px!important;text-align:center}.offset-controls .hint{margin-left:auto}.source-shape{display:inline-block;color:var(--cyan);font-size:.65em;margin-right:.3em}.source-shape.B{color:var(--violet)}.source-shape.C{color:#ffca7a}.source-dot.C{background:#ffca7a}.source-pill.C{background:#624b20;border-color:#ffca7a}
+
+.fusion-send-targets{position:fixed;z-index:2147483646;width:min(290px,calc(100vw - 16px));padding:14px;background:#14263cf5;border:1px solid #4b6b83;border-radius:12px;box-shadow:0 8px 30px #0007}.fusion-send-targets[hidden]{display:none}.fusion-send-targets label{display:flex;align-items:center;gap:8px;margin:14px 0}.fusion-send-targets>div{display:flex;justify-content:flex-end;gap:8px}.reply-note{position:absolute;bottom:52px;left:12px;z-index:7;border-radius:7px;padding:4px 8px;background:#1b3349e8;font-size:12px;color:#aaddf0}.reply-note button{min-height:26px;padding:1px 7px;margin-left:8px}.offset-controls{display:grid;grid-template-columns:auto auto minmax(55px,1fr) auto auto}.offset-controls .hint{grid-column:1/-1;text-align:right}.offset-controls input[type=number]{width:100%!important}
+
+/* Native video is under a transparent WebView: hide the page behind the fixed stage. */
+body.full>header,body.full main>.setup,body.full main>.status,body.full main>#normalHistory,body.full main>details,body.full main>footer{visibility:hidden!important;pointer-events:none!important}

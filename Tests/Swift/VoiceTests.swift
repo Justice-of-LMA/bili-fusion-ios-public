@@ -12,5 +12,11 @@ final class VoiceTests:XCTestCase {
     }
     func testOffAndMonoBypassBitExactly()throws{for pair in [(try fixture(),Float(0)),(try fixture(true),Float(1))]{let r=legacy(pair.0,strength:pair.1);XCTAssertEqual(r.1,0);XCTAssertEqual(r.0,pair.0)}}
     func testMalformedAndBoundedInputIsNotReplacedWithBrokenMedia(){let bytes=Data(repeating:0,count:4096),r=legacy(bytes,strength:1);XCTAssertNotEqual(r.1,1);XCTAssertEqual(r.0,bytes)}
+    func testOrdinaryEditionHasNoLegacyProcessingEvenWithOldSavedStrength() throws {
+        guard !VoiceSegment.aiEnabled else { throw XCTSkip("Normal edition regression") }
+        let input=try fixture();let r=VoiceSegment.process(input,strength:1)
+        XCTAssertEqual(r.1,0);XCTAssertEqual(r.0,input)
+    }
+
 }
 

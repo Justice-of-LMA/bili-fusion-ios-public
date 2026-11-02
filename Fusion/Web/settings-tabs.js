@@ -14,7 +14,8 @@ for(const node of [...root.children]){if(node===title)continue;
  let key=section;
  if(/\b(scPosition|scCorner|scDrag|scDraggable)\b/.test(ids)){key='sc';scHints=true;}
  else if(node.tagName==='P'&&scHints)key='sc';
- else if(/\b(audioBC|audioOnly[ABC]|volume[ABC]|delay[ABC]|voice\w*|audioModeHint)\b/.test(ids)){key='audio';scHints=false;}
+ else if(/\b(audioBC|audioOnly[ABC]|audioModeHint)\b/.test(ids)){key='video';scHints=false;}
+ else if(/\b(volume[ABC]|delay[ABC]|voice\w*)\b/.test(ids)){key='audio';scHints=false;}
  else if(/\b(quality[ABC]\w*|refreshQuality[ABC]|verifyQuality[ABC]|backgroundMode|screenOrientation|pip\w*)\b/.test(ids)){key='video';scHints=false;}
  else if(/\b(chat\w*|refresh[ABC]|reconnect|verify|blockingSettings|size|opacity|font|color|marker|maxRows|nonOverlap|mergeSame|user|original)\b/.test(ids)){key='chat';scHints=false;}
  panels[key].append(node);

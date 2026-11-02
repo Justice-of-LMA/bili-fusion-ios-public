@@ -61,11 +61,11 @@ static int separate(const float *input,size_t count,float *speech,int bypass){
  const char *names[]={"mix","conv_cache","tra_cache","inter_cache"},*outs[]={"enh","conv_cache_out","tra_cache_out","inter_cache_out"};
  for(size_t p=0;p+N<=padded;p+=H){
   float real[N],imag[N]={0};for(int i=0;i<N;i++)real[i]=input[reflected((long)p+i-LEAD,count)]*window[i];fft(real,imag,0);
-  if(!bypass){for(int k=0;k<=N/2;k++){c->spectrum[k*2]=real[k];c->spectrum[k*2+1]=imag[k];}
+  if(!bypass){float peak=0;for(int j=0;j<N;j++)peak=fmaxf(peak,fabsf(input[reflected((long)p+j-LEAD,count)]));float model_gain=peak>.65f?.65f/peak:1;for(int k=0;k<=N/2;k++){c->spectrum[k*2]=real[k]*model_gain;c->spectrum[k*2+1]=imag[k]*model_gain;}
    const OrtValue *inputs[]={c->mix,c->state[0],c->state[1],c->state[2]};OrtValue *values[4]={0};
    if(failed(api->Run(session,NULL,names,inputs,4,outs,4,values))){for(int i=0;i<4;i++)if(values[i])api->ReleaseValue(values[i]);goto done;}
    float *enh=NULL;if(failed(api->GetTensorMutableData(values[0],(void**)&enh))){for(int i=0;i<4;i++)api->ReleaseValue(values[i]);goto done;}
-   for(int k=0;k<=N/2;k++){real[k]=enh[k*2];imag[k]=enh[k*2+1];}
+   for(int k=0;k<=N/2;k++){real[k]=enh[k*2]/model_gain;imag[k]=enh[k*2+1]/model_gain;}
    api->ReleaseValue(values[0]);for(int i=0;i<3;i++){api->ReleaseValue(c->state[i]);c->state[i]=values[i+1];}total_frames++;
   }
   imag[0]=imag[N/2]=0;for(int k=1;k<N/2;k++){real[N-k]=real[k];imag[N-k]=-imag[k];}fft(real,imag,1);
@@ -82,6 +82,8 @@ static float *downsample(const float *input,size_t frames,int rate,size_t count)
  for(int p=0;p<256;p++){double total=0;for(int k=0;k<48;k++){double x=k-23-p/256.,s=fabs(x)<1e-12?2*cut:sin(2*PI*cut*x)/(PI*x);double w=.5+.5*cos(PI*x/24);coeff[p][k]=s*w;total+=coeff[p][k];}for(int k=0;k<48;k++)coeff[p][k]/=total;}
  for(size_t i=0;i<count;i++){double at=i*(double)rate/16000;long start=(long)floor(at);int p=(int)((at-start)*256);double value=0;for(int k=0;k<48;k++)value+=input[reflected(start+k-23,frames)]*coeff[p][k];result[i]=(float)value;}return result;
 }
+/* Low-cost linked stereo peak/transient guard, only after successful AI subtraction. */
+static void guard_residual(float **pcm,size_t frames,int rate,int channels){float bass[2]={0},smooth[2]={0},envelope=0,gain=1;float low=1-expf(-2*PI*140/rate),air=1-expf(-2*PI*5500/rate),attack=1-expf(-1.f/(rate*.0015f)),release=1-expf(-1.f/(rate*.09f)),gr=1-expf(-1.f/(rate*.07f));for(size_t i=0;i<frames;i++){float peak=0;for(int c=0;c<channels;c++){float x=isfinite(pcm[c][i])?pcm[c][i]:0;bass[c]+=low*(x-bass[c]);smooth[c]+=air*(x-smooth[c]);float high=x-smooth[c];if(fabsf(high)>.16f&&fabsf(high)>fabsf(smooth[c])*.85f)x=smooth[c]+high*.72f;if(fabsf(x)<.25f)x+=bass[c]*.1f;pcm[c][i]=x;peak=fmaxf(peak,fabsf(x));}envelope+=(peak>envelope?attack:release)*(peak-envelope);float target=envelope>.55f?(.55f+(envelope-.55f)*.28f)/envelope:1;if(target<gain)gain=target;else gain+=gr*(target-gain);if(peak*gain>.9f)gain=.9f/peak;for(int c=0;c<channels;c++)pcm[c][i]*=gain;}}
 int fusion_ai_pcm(float **channels,size_t frames,int rate,int channel_count,float amount){
  if(!channels||frames<2||rate<16000||rate>96000||channel_count<1||channel_count>2||frames>(size_t)rate*24||!isfinite(amount))return -4;
  for(int c=0;c<channel_count;c++)if(!channels[c])return -4;
@@ -90,8 +92,9 @@ int fusion_ai_pcm(float **channels,size_t frames,int rate,int channel_count,floa
  size_t count=(frames*16000+(size_t)rate-1)/(size_t)rate;float *voice[2]={0};
  for(int c=0;c<channel_count;c++){float *input=downsample(channels[c],frames,rate,count);voice[c]=calloc(count,sizeof(float));if(!input||!voice[c]){free(input);ok=-3;goto cleanup;}
   int worked=separate(input,count,voice[c],0);free(input);if(!worked){ok=-3;goto cleanup;}}
- for(int c=0;c<channel_count;c++)for(size_t i=0;i<frames;i++){double at=i*16000./rate;size_t a=(size_t)at,b=a+1<count?a+1:a;if(a>=count)a=b=count-1;double t=at-floor(at),speech=voice[c][a]*(1-t)+voice[c][b]*t;channels[c][i]=fmaxf(-1,fminf(1,channels[c][i]-amount*speech));}
- set_detail("GTCRN local CPU · %lu frames · RTF %.2f · %.0f%%",total_frames,(seconds()-begin)/(frames/(double)rate),amount*100);ok=1;
+ for(int c=0;c<channel_count;c++)for(size_t i=0;i<frames;i++){double at=i*16000./rate;size_t a=(size_t)at,b=a+1<count?a+1:a;if(a>=count)a=b=count-1;double t=at-floor(at),speech=voice[c][a]*(1-t)+voice[c][b]*t;channels[c][i]=channels[c][i]-amount*speech;}
+ guard_residual(channels,frames,rate,channel_count);
+ set_detail("GTCRN + peak guard local CPU · %lu frames · RTF %.2f · %.0f%%",total_frames,(seconds()-begin)/(frames/(double)rate),amount*100);ok=1;
 cleanup:for(int c=0;c<2;c++)free(voice[c]);
 done:pthread_mutex_unlock(&mutex);return ok;
 }

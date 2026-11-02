@@ -144,7 +144,7 @@ class Lanes{
   }
 }
 function delayAction(current,previous,next,ranges){
-  previous=clamp(previous,0,20);next=clamp(next,0,20);
+  previous=clamp(previous,0,60);next=clamp(next,0,60);
   const delta=next-previous;
   if(Math.abs(delta)<.001)return {seek:null,hold:0};
   const containing=ranges.find(([a,b])=>current>=a&&current<=b);
@@ -158,7 +158,7 @@ function delayAction(current,previous,next,ranges){
 // accumulation pause, subtract the remaining hold so each arrival still waits D seconds.
 function messageTime(current,delay=0,holdRemaining=0){
   if(!Number.isFinite(current)||current<0)return null;
-  return current+Math.max(0,clamp(delay,0,20)-Math.max(0,Number(holdRemaining)||0));
+  return current+Math.max(0,clamp(delay,0,60)-Math.max(0,Number(holdRemaining)||0));
 }
 function laneLayout(height,size,area,limit){
   size=clamp(size,14,32);

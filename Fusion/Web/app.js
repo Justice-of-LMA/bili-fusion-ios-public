@@ -2,9 +2,9 @@
 'use strict';
 const SOURCES=['A','B','C'];
 const $=id=>document.getElementById(id),C=FusionCore,waiters=new Map();let sequence=0,generation=0,channels={},manualPaused=false,foreground=true,account={loggedIn:false},full=false;
-const qualityChoices={A:0,B:0,C:0},preferredDelays={A:0,B:0,C:0};let tvPreviewMuted=false;let shareOffsets=null;let preferredDual=false,inVideoPiP=false;
+const qualityChoices={A:0,B:0,C:0},preferredDelays={A:0,B:0,C:0},preferredOffsets={A:0,B:0,C:0};let tvPreviewMuted=false;let shareOffsets=null;let preferredDual=false,inVideoPiP=false;
 let pipEnabled=false,pipBusy=false,aiVoiceMode=false,voiceFailure="";
-let hideTimer,frame=0,lastPump=0,historyCount=0,lastChatStats=0;
+let replyDraft=null;let hideTimer,frame=0,lastPump=0,historyCount=0,lastChatStats=0;
 const stage=$('stage'),bulletLayer=$('bullets'),cardLayer=$('cards'),lanes=new C.Lanes();
 let flying=[],bulletLayout={tops:[]};const scNodes=new Map();
 function notice(message,error=false){$('notice').textContent=message;$('notice').classList.toggle('error',error);}
@@ -32,20 +32,22 @@ function applyBlocked(value){
 }
 const blockPanel=FusionBlockingUI.mount({read:()=>rpc('blockingGet'),write:rules=>rpc('blockingSet',{rules}),changed:applyBlocked});
 const shareCollector=new FusionShare.Collector();
-const messageMenu=FusionDanmaku.menu({copy:text=>rpc('clipboardWrite',{text}),share:(message,context)=>{const code=shareCollector.complete(message,context);return code?()=>applySharedConfig(FusionShare.decode(code),true):null;},shareProgress:(message,context)=>shareCollector.progress(message,context),blockUser:(m,p)=>blockPanel.blockUser(m,p),blockText:text=>blockPanel.blockText(text),
+const messageMenu=FusionDanmaku.menu({reply:prepareReply,copy:text=>rpc('clipboardWrite',{text}),share:(message,context)=>{const code=shareCollector.complete(message,context);return code?()=>applySharedConfig(FusionShare.decode(code),true):null;},shareProgress:(message,context)=>shareCollector.progress(message,context),blockUser:(m,p)=>blockPanel.blockUser(m,p),blockText:text=>blockPanel.blockText(text),
  active:c=>foreground&&c.generation===generation&&channels[c.source]?.epoch===c.epoch&&String(channels[c.source]?.room?.room)===c.room&&(channels[c.source]?.room?.platform||'bilibili')===c.platform,
  send:async(text,c)=>{if(c.platform==='bilibili'&&!account.loggedIn)throw Error('请先登录 B站');const reply=await rpc('send',{room:c.room,platform:c.platform,text,uid:account.uid});if(reply?.submitted!==true)throw Error('未收到明确提交确认，没有重发');return '已提交到 '+c.source+'；平台确认不保证所有观众可见。';}});
+function prepareReply(message,context){const c=channels[context.source];if(!c||c.epoch!==context.epoch||context.generation!==generation)throw Error('原直播间已改变，请点击当前房间的新弹幕');replyDraft={context:{...context},suffix:'@'+message.user+'：'+message.text};$('target').value=context.source;$('message').value=replyDraft.suffix;$('settings').hidden=true;wake();let hint=$('replyNote');if(!hint){hint=document.createElement('div');hint.id='replyNote';hint.className='reply-note';stage.append(hint);}hint.replaceChildren(document.createTextNode('回复 '+context.source+' · '+message.user));const cancel=document.createElement('button');cancel.textContent='×';cancel.setAttribute('aria-label','取消回复');cancel.onclick=()=>{if(replyDraft&&$('message').value.endsWith(replyDraft.suffix))$('message').value=$('message').value.slice(0,-replyDraft.suffix.length);replyDraft=null;hint.hidden=true;};hint.append(cancel);hint.hidden=false;requestAnimationFrame(()=>{$('message').focus({preventScroll:true});$('message').setSelectionRange(0,0);});notice('在 @引用前输入回复；尚未发送，完整文字长度按平台检查。');}
 function messageContext(source){const c=channels[source];return {source,platform:c?.room?.platform||'bilibili',room:String(c?.room?.room||''),epoch:c?.epoch,generation};}
 function refreshBulletGroup(b){const old=b.group.members[0]?.key;if(!b.group.filter((m,c)=>!blocked(m,c.source)))return false;if(old!==b.group.members[0]?.key)b.el.querySelector(".username")?.remove();b.source=b.group.members[0].context.source;if(b.badge)FusionDanmaku.badge(b.badge,b.group);return true;}
-async function setupVoiceMode(){try{const mode=await rpc('voiceMode');aiVoiceMode=mode?.ai===true;if(!aiVoiceMode)return;document.querySelector('h1 small').textContent='AI 去人声 0.4.1';$('voiceModeLabel').textContent='A AI 去人声开关（本机）';$('voiceModeHint').textContent='GTCRN 轻量语音模型：从原声中减去模型估计的人声。仅处理 A 的 HLS/TS/AAC，B 不变；FLV / 分片 MP4 不处理，需要手动选可用的 TS 线路。会损伤部分游戏声音；处理后续片段，不上传音频、不自动刷新。';$('voiceStatus').textContent='AI 默认关闭。强度 0% 等同关闭，后续片段直接保留原声、不运行模型。开关与0–100%强度会记住；已缓冲的音频需先播完，不自动刷新。开启后可先用100%试听。';}catch{/* Ordinary/mock/native older versions retain the existing filter UI. */}}
-async function applyVoice(){voiceFailure='';const strength=$('voiceA').checked?Number($('voiceStrength').value)/100:0;$('voiceStrengthValue').textContent=$('voiceStrength').value+'%';try{const c=channels.A;if(c?.media.webMode){if(aiVoiceMode){c.voice?.close?.();$('voiceStatus').textContent='此 FLV 线路未经过 AI 模型，保留原声音；请手动选择 HLS/TS，不会自动换线。';return;}c.voice||=new FusionVoiceReducer(c.media.element);c.voice.setChannels(c.media.channels);await c.voice.set($('voiceA').checked,strength);$('voiceStatus').textContent=c.voice.detail()+'；不是 AI 分离，居中游戏音效也可能减弱。';}else await rpc('mediaVoice',{strength});}catch(e){voiceFailure='当前未处理，保持原声音：'+e.message;$('voiceStatus').textContent=voiceFailure;notice(e.message,true);}}
+async function setupVoiceMode(){try{const mode=await rpc('voiceMode');aiVoiceMode=mode?.ai===true;voiceFeature(aiVoiceMode);if(!aiVoiceMode)return;document.querySelector('h1 small').textContent='AI 去人声 0.4.2';$('voiceModeLabel').textContent='A AI 去人声开关（本机）';$('voiceModeHint').textContent='GTCRN 轻量语音模型：从原声中减去模型估计的人声。仅处理 A 的 HLS/TS/AAC，B/C 不变；FLV / 分片 MP4 不处理，需要手动选可用的 TS 线路。会损伤部分游戏声音；处理后续片段，不上传音频、不自动刷新。';$('voiceStatus').textContent='AI 默认关闭。强度 0% 等同关闭，后续片段直接保留原声、不运行模型。开关与0–100%强度会记住；已缓冲的音频需先播完，不自动刷新。开启后可先用100%试听。';}catch{voiceFeature(false);}}
+async function applyVoice(){voiceFailure='';if(!aiVoiceMode){$('voiceA').checked=false;return;}const strength=$('voiceA').checked?Number($('voiceStrength').value)/100:0;$('voiceStrengthValue').textContent=$('voiceStrength').value+'%';try{const c=channels.A;if(c?.media.webMode){c.voice?.close?.();$('voiceStatus').textContent='此 FLV 线路未经过 AI 模型，保留原声音；请手动选择 HLS/TS，不会自动换线。';return;}await rpc('mediaVoice',{strength});}catch(e){voiceFailure='当前未处理，保持原声音：'+e.message;$('voiceStatus').textContent=voiceFailure;notice(e.message,true);}}
 window.__fusionVoiceStatus=value=>{if(voiceFailure){$('voiceStatus').textContent=voiceFailure;return;}if(channels.A?.media.webMode)return;if(!$('voiceA').checked){$('voiceStatus').textContent='已关闭，保留 A 原声音';return;}if($('voiceA').checked)$('voiceStatus').textContent=value+(aiVoiceMode?'。仅本机处理 A 的后续 TS/AAC 片段（单声道/立体声），不改 B；未支持格式保留原声。':'。只处理后续未缓存的 TS/AAC 片段，单声道和不支持的格式保留原声音。');};
+function voiceFeature(enabled){if(enabled||$('removedLegacyVoice'))return;const hint=$('voiceModeHint')||$('voiceStrength').closest('label').nextElementSibling;const hidden=document.createElement('div');hidden.hidden=true;hidden.id='removedLegacyVoice';document.body.append(hidden);for(const node of [$('voiceA').closest('label'),$('voiceStrength').closest('label'),$('voiceApply'),hint,$('voiceStatus')])if(node)hidden.append(node);$('voiceA').checked=false;$('voiceStrength').value='0';}
 const blockButton=document.createElement('button');blockButton.id='blockingSettings';blockButton.textContent='用户 / 关键词屏蔽';blockButton.onclick=()=>blockPanel.open();
 $('settings').append(blockButton);
 window.openBlocking=()=>blockPanel.open();
 const ids=['enabledA','enabledB','enabledC','audioOnlyA','audioOnlyC','volumeC','chatC','scC','platformC','backgroundMode','screenOrientation','voiceA','voiceStrength','volumeA','volumeB','size','chatSpeed','opacity','font','color','marker','chatA','chatB','scA','scB','user','original','chatArea','maxRows','audioOnlyB','nonOverlap','mergeSame','scDraggable','pipRows','pipSize','pipUser','platformA','platformB'];
 function save(){
-  const config={roomA:$('roomA').value,roomB:$('roomB').value,roomC:$('roomC').value,shareOffsets};
+  const config={roomA:$('roomA').value,roomB:$('roomB').value,roomC:$('roomC').value,shareOffsets:SOURCES.map(s=>preferredOffsets[s]),timeOffsets:{...preferredOffsets}};
   for(const id of ids)config[id]=$(id).type==='checkbox'?$(id).checked:$(id).value;
   config.qualityC=qualityChoices.C;config.delayC=preferredDelays.C;config.qualityA=qualityChoices.A;config.qualityB=qualityChoices.B;config.delayA=preferredDelays.A;config.delayB=preferredDelays.B;config.dual=document.body.classList.contains('dual');
   window.cleanView?.preserve(config);
@@ -54,12 +56,18 @@ function save(){
 try{
   const conf=JSON.parse(localStorage.getItem('fusion-mobile-v1')||'{}');
   preferredDual=conf.dual===true;shareOffsets=Array.isArray(conf.shareOffsets)&&conf.shareOffsets.length===3?conf.shareOffsets:null;
-  for(const source of SOURCES){preferredDelays[source]=C.clamp(Number(conf['delay'+source])||0,0,20);$('delay'+source).value=preferredDelays[source];$('delay'+source+'Value').textContent=preferredDelays[source].toFixed(1)+'s';}
+  for(const source of SOURCES){preferredDelays[source]=C.clamp(Number(conf['delay'+source])||0,0,60);$('delay'+source).value=preferredDelays[source];$('delay'+source+'Value').textContent=preferredDelays[source].toFixed(1)+'s';}
   for(const s of SOURCES)qualityChoices[s]=Number.isInteger(conf['quality'+s])&&conf['quality'+s]>=0&&conf['quality'+s]<=100000?conf['quality'+s]:0;
   for(const id of [...ids,'roomA','roomB','roomC'])if(Object.hasOwn(conf,id)){
     const e=$(id);if(e.type==='checkbox')e.checked=!!conf[id];else e.value=conf[id];
   }
 }catch{}
+// Migrate saved actual delays, preserving a previous imported signed reference when valid.
+try{const conf=JSON.parse(localStorage.getItem('fusion-mobile-v1')||'{}'),saved=conf.timeOffsets||(shareOffsets?Object.fromEntries(SOURCES.map((s,i)=>[s,Number(shareOffsets[i])])):preferredDelays);const enabled=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked]));const actual=FusionOffsets.normalize(saved,enabled);if(SOURCES.every(s=>!enabled[s]||Math.abs(actual[s]-preferredDelays[s])<.01))Object.assign(preferredOffsets,saved);else Object.assign(preferredOffsets,preferredDelays);}catch{Object.assign(preferredOffsets,preferredDelays);}
+let acceptedOffsetSources=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked]));
+function renderOffsets(){for(const s of SOURCES){$('delay'+s).value=preferredOffsets[s];$('delay'+s+'Value').textContent=FusionOffsets.format(preferredOffsets[s]);if($('offset'+s))$('offset'+s).value=preferredOffsets[s].toFixed(1);if($('actualDelay'+s))$('actualDelay'+s).textContent='实际延迟 '+preferredDelays[s].toFixed(1)+'s';}}
+function applyOffsets(source,value){try{const proposed={...preferredOffsets,[source]:value},enabled=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked])),actual=FusionOffsets.normalize(proposed,enabled);const plans=[];for(const s of SOURCES){const c=channels[s];if(c?.started&&enabled[s])plans.push([c,actual[s],FusionOffsets.transition(c.media,c.delay,actual[s],Math.max(0,(c.holdUntil-performance.now())/1000))]);}acceptedOffsetSources={...enabled};Object.assign(preferredOffsets,proposed);for(const s of SOURCES)preferredDelays[s]=actual[s];for(const [c,next,plan] of plans)c.commitDelay(next,plan);for(const s of SOURCES)if(channels[s]&&!channels[s].started)channels[s].restoreDelayPending=actual[s];shareOffsets=SOURCES.map(s=>preferredOffsets[s]);save();renderOffsets();notice('已更新三路相对偏移；实际缓冲延迟见各路数值。');return true;}catch(error){renderOffsets();notice(error.message,true);return false;}}
+FusionOffsets.controls(()=>preferredOffsets,applyOffsets);renderOffsets();
 if(!['audio','pause'].includes($('backgroundMode').value))$('backgroundMode').value='audio';
 if(!['auto','portrait','landscape'].includes($('screenOrientation').value))$('screenOrientation').value='auto';
 const scLayout=SCLayout.mount(cardLayer,()=>mainView(),{load:()=>JSON.parse(localStorage.getItem('fusion-ios-sc-position')||'null'),save:p=>localStorage.setItem('fusion-ios-sc-position',JSON.stringify(p)),bottom:()=>Math.min(64,mainView().clientHeight*.13)});
@@ -151,7 +159,7 @@ $('donationOpen').onclick=async()=>{
   finally{$('donationOpen').disabled=false;}
 };
 window.handleBack=()=>{
-  if(messageMenu.close())return true;
+  if(window.multiSendPanel?.close())return true;if(messageMenu.close())return true;
   if(window.tvController?.close())return true;
   if(window.fusionShareUI?.close())return true;
   if(blockPanel.close())return true;
@@ -186,7 +194,7 @@ function addHistory(event,source){
   if(historyCount===0)$('history').replaceChildren();
   const row=document.createElement('div');row.className='history-row';row.dataset.source=source;
   const tag=document.createElement('span');tag.className='source';tag.textContent=source+(event.type==='sc'?' · ¥'+event.price:'');
-  row.__message=event;const name=document.createElement('button');name.className='history-user';name.textContent=event.user||'用户';name.onclick=()=>blockPanel.open(event,channels[source]?.room?.platform||'bilibili');
+  row.__message=event;const name=document.createElement('button');name.className='history-user';name.textContent=event.user||'用户';name.onclick=e=>{e.stopPropagation();messageMenu.open(historyGroup,e);};
   const historyGroup=new FusionDanmaku.Group(event,messageContext(source));row.onclick=e=>{if(!e.target.closest('button'))messageMenu.open(historyGroup,e);};
   row.append(tag,name);appendContent(row,event);$('history').append(row);historyCount++;
   while(historyCount>160){$('history').firstChild.remove();historyCount--;}
@@ -205,7 +213,7 @@ function addBullet(event,source,now){
   el.style.fontSize=$('size').value+'px';el.style.fontFamily=$('font').value;el.style.opacity=Number($('opacity').value)/100;
   if($('marker').value!=='none'){
     const tag=document.createElement('span');tag.className=($('marker').value==='pill'?'source-pill':'source-dot')+' '+source;
-    if($('marker').value==='pill')tag.textContent=source;el.append(tag);
+    if($('marker').value==='pill')tag.textContent=source;else if($('marker').value==='shape'){tag.className='source-shape '+source;tag.textContent={A:'▲',B:'■',C:'●'}[source];}el.append(tag);
   }
   if($('user').checked&&event.user){const n=document.createElement('span');n.className='username';n.textContent=event.user+'：';el.append(n);}
   const body=document.createElement('span');body.className='body';body.style.color=$('original').checked?'#'+(event.color||16777215).toString(16).padStart(6,'0'):$('color').value;
@@ -269,7 +277,7 @@ class Channel{
     window.FusionVideoZoom?.reset(this.source);
     if(this.closed)return;
     this.switching=true;this.destroyEngine();this.switching=false;this.started=false;this.lastEnd=0;this.pending=[];this.timeline=new C.Timeline();this.holdUntil=0;this.delay=0;this.restoreDelayPending=preferredDelays[this.source];
-    $('delay'+this.source).value=String(preferredDelays[this.source]);$('delay'+this.source+'Value').textContent=preferredDelays[this.source].toFixed(1)+'s';
+    renderOffsets();
     const source=this.room.sources[this.index];
     renderQuality(this);
     if(!source){this.renderStatus('直播线路失败，请重新连接');return;}
@@ -318,19 +326,12 @@ class Channel{
     if(at===null){this.pending.push(m);if(this.pending.length>100)this.pending.shift();}
     else this.timeline.add(m,at);
   }
-  applyDelay(value){
-    if(!this.started){preferredDelays[this.source]=C.clamp(value,0,20);this.restoreDelayPending=preferredDelays[this.source];save();return;}
-    if(this.holdUntil>performance.now()){notice('正在积累缓冲，请完成后再调节',true);$('delay'+this.source).value=this.delay;$('delay'+this.source+'Value').textContent=this.delay.toFixed(1)+'s';return;}
-    const action=C.delayAction(this.media.currentTime,this.delay,value,ranges(this.media));this.delay=C.clamp(value,0,20);preferredDelays[this.source]=this.delay;save();
-    $('delay'+this.source).value=String(this.delay);$('delay'+this.source+'Value').textContent=this.delay.toFixed(1)+'s';
-    clearBullets();if(action.seek!==null){this.media.currentTime=Math.max(0,action.seek);this.timeline.seek(this.media.currentTime);}
-    if(action.hold>.02){this.holdUntil=performance.now()+action.hold*1000;this.media.pause();}
-    this.renderStatus();notice(this.source+' 额外延迟设为 '+this.delay.toFixed(1)+' 秒，消息与 SC 跟随该路播放进度。');
-  }
+  applyDelay(value){const next=C.clamp(value,0,60);if(!this.started){this.restoreDelayPending=next;return;}try{this.commitDelay(next,FusionOffsets.transition(this.media,this.delay,next,ranges(this.media)&&Math.max(0,(this.holdUntil-performance.now())/1000)));}catch(error){notice(error.message,true);}}
+  commitDelay(next,action){this.delay=next;clearSourceBullets(this.source);if(action.seek!==null){this.media.currentTime=Math.max(0,action.seek);this.timeline.seek(this.media.currentTime);}this.holdUntil=action.hold>.02?performance.now()+action.hold*1000:0;if(this.holdUntil)this.media.pause();else this.play();this.renderStatus();}
   tick(now){
     if(this.suspended)return;
     const edge=this.edge(now);
-    if(foreground&&this.media.paused&&edge!==null&&edge-this.media.currentTime>30&&this.room.sources[this.index]?.type==='flv'){
+    if(foreground&&this.media.paused&&edge!==null&&edge-this.media.currentTime>75&&this.room.sources[this.index]?.type==='flv'){
       this.suspend();notice(this.source+' 暂停后的缓冲已达上限，已停止下载；点击继续可重新连接。');return;
     }
     const at=this.messageAt(now);if(at!==null&&this.pending.length){for(const m of this.pending)this.timeline.add(m,at);this.pending=[];}
@@ -364,11 +365,12 @@ function stop(){
   rpc('stopChat').catch(()=>{});manualPaused=false;updatePlaybackService();clearBullets();cardLayer.replaceChildren();scNodes.clear();
   $('placeholder').hidden=false;$('pause').disabled=$('live').disabled=$('stop').disabled=true;$('pause').textContent='暂停';
   for(const s of SOURCES){
-    $('video'+s).style.visibility='hidden';$('status'+s).textContent='尚未连接';$('delay'+s).value=String(preferredDelays[s]);$('delay'+s+'Value').textContent=preferredDelays[s].toFixed(1)+'s';
+    $('video'+s).style.visibility='hidden';$('status'+s).textContent='尚未连接';renderOffsets();
     $('quality'+s).replaceChildren(new Option('自动（默认档位）','0'));$('quality'+s).disabled=true;$('quality'+s+'State').textContent='开始融合后读取可选清晰度';
   }
 }
 async function connect(){
+  try{Object.assign(preferredDelays,FusionOffsets.normalize(preferredOffsets,Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked]))));renderOffsets();}catch(e){notice(e.message,true);return;}
   stop();const gen=generation;$('connect').disabled=true;save();notice('正在读取所选直播间…');
   try{
     const activeSources=selectedSources();
@@ -502,14 +504,14 @@ for(const id of ids)$(id).addEventListener('input',()=>{
 });
 for(const s of SOURCES){
   $('quality'+s).onchange=()=>void changeQuality(s);
-  $('delay'+s).oninput=()=>{$('delay'+s+'Value').textContent=Number($('delay'+s).value).toFixed(1)+'s';};
-  $('delay'+s).onchange=()=>{const value=C.clamp(Number($('delay'+s).value),0,20),c=channels[s];if(c)c.applyDelay(value);else{preferredDelays[s]=value;save();notice('已记住 '+s+' 延迟，开始播放后自动积累缓冲应用。');}};
+  $('delay'+s).oninput=()=>{$('delay'+s+'Value').textContent=FusionOffsets.format($('delay'+s).value);};
+  $('delay'+s).onchange=()=>applyOffsets(s,Number($('delay'+s).value));
 }
 $('connect').onclick=connect;$('stop').onclick=()=>{stop();notice('已停止播放与消息连接');};
 $('voiceApply').onclick=()=>void changeQuality('A',true);
 $('login').onclick=()=>{const menu=document.createElement('dialog');menu.innerHTML='<p>账号 / 登录</p>';for(const [platform,name] of [['bilibili','B站'],['huya','虎牙'],['douyu','斗鱼']]){const button=document.createElement('button');button.textContent=name;button.onclick=()=>{menu.close();menu.remove();void rpc('login',{platform}).catch(e=>notice(e.message,true));};menu.append(button);}const close=document.createElement('button');close.textContent='关闭';close.onclick=()=>{menu.close();menu.remove();};menu.append(close);document.body.append(menu);menu.showModal();};
 $('pause').onclick=()=>{manualPaused=!manualPaused;if(manualPaused)clearBullets();if(pipEnabled)void rpc('pipPause',{value:manualPaused}).catch(()=>{});for(const c of Object.values(channels)){if(pipEnabled&&c.source==='A')continue;manualPaused?c.media.pause():c.play();}if(manualPaused)clearBullets();$('pause').textContent=manualPaused?'继续':'暂停';updatePlaybackService();wake();};
-$('live').onclick=()=>{
+$('live').onclick=()=>{Object.assign(preferredOffsets,{A:0,B:0,C:0});shareOffsets=null;
   clearBullets();manualPaused=false;$('pause').textContent='暂停';
   for(const c of Object.values(channels)){const r=ranges(c.media);if(r.length){c.media.currentTime=Math.max(r.at(-1)[0],r.at(-1)[1]-.7);c.timeline.seek(c.media.currentTime);}c.delay=0;preferredDelays[c.source]=0;save();c.holdUntil=0;$('delay'+c.source).value='0';$('delay'+c.source+'Value').textContent='0.0s';c.play();}
   notice('回到当前可播放位置，额外延迟归零；各路仍可能有不同的原始直播延迟。');
@@ -528,7 +530,7 @@ function setDual(on){window.FusionVideoZoom?.resetAll();document.body.classList.
 function showAllViews(){if(typeof pipEnabled!=='undefined'&&pipEnabled){notice('请先关闭消息画中画');return;}for(const source of SOURCES)if(channels[source]||$('enabled'+source).checked){$('audioOnly'+source).checked=false;applyAudioMode(source);}setDual(true);}
 $('dual').onclick=()=>document.body.classList.contains('dual')?setDual(false):showAllViews();$('threeView').onclick=showAllViews;
 $('audioBC').onclick=()=>{for(const source of ['B','C']){$('audioOnly'+source).checked=true;applyAudioMode(source);}save();};
-document.addEventListener('fusion-source-selection',()=>{save();if(!Object.keys(channels).length)refreshViewLayout();});
+document.addEventListener('fusion-source-selection',()=>{if(!applyOffsets('A',preferredOffsets.A))for(const s of SOURCES)$('enabled'+s).checked=acceptedOffsetSources[s];save();if(!Object.keys(channels).length)refreshViewLayout();});
 function hideChrome(){clearTimeout(hideTimer);$('settings').hidden=true;stage.querySelector('input:focus,select:focus')?.blur();stage.classList.add('quiet');}
 stage.addEventListener('click',e=>{
   if(e.target.closest('button,input,select,textarea,a,#settings,.sc,.bullet,[role="dialog"]'))return;
@@ -578,7 +580,8 @@ $('pip').onclick=$('pipSettingsToggle').onclick=()=>void togglePiP();
 let sendingMessage=false,sendResultTimer,sendVisibilityEpoch=0;
 async function sendMessage(both){
   if(sendingMessage)return;
-  const sources=both?['A','B']:[$('target').value],text=$('message').value.trim();
+  if(replyDraft){const c=replyDraft.context;if(c.generation!==generation||channels[c.source]?.epoch!==c.epoch){notice('原直播间已变更，请取消回复或重新选择弹幕',true);return;}}
+  const sources=Array.isArray(both)?both:both?['A','B']:[$('target').value],text=$('message').value.trim();
   if(sources.some(s=>!channels[s])){notice('请先连接直播间',true);return;}
   if(sources.some(s=>(channels[s].room.platform||'bilibili')==='bilibili')&&!account.loggedIn){notice('请先登录 B站',true);return;}
   if(!text||[...text].length>40){notice('请输入 1–40 字的弹幕',true);return;}
@@ -593,13 +596,13 @@ async function sendMessage(both){
         state==='wait'?summarize(results)+'；间隔 5 秒后提交另一房间':
         state==='sending'?(results.length?summarize(results)+'；':'')+'正在提交 '+item.sources.join('/')+'…':summarize(results))});
     const all=results.every(r=>r.submitted);
-    if(all&&$('message').value.trim()===text)$('message').value='';
+    if(all&&$('message').value.trim()===text){$('message').value='';replyDraft=null;if($('replyNote'))$('replyNote').hidden=true;}
     show(summarize(results)+(all?'。提交不保证所有观众可见。':'。草稿已保留；请确认结果，仅重发未成功的房间。'));
   }catch(error){show(error.message);}
   finally{sendingMessage=false;$('send').disabled=$('sendBoth').disabled=false;sendResultTimer=setTimeout(()=>{$('sendResult').hidden=true;},10000);wake();}
 }
 $('composer').onsubmit=e=>{e.preventDefault();void sendMessage(false);};
-$('sendBoth').onclick=()=>void sendMessage(true);
+window.multiSendPanel=FusionSendTargets.mount({context:s=>channels[s]?messageContext(s):null,send:sources=>void sendMessage(sources)});$('sendBoth').onclick=e=>multiSendPanel.open(e);
 SOURCES.forEach(source=>new ResizeObserver(clearBullets).observe($('view'+source)));updateLabels();setDual(preferredDual&&!$('audioOnlyB').checked);void syncPlaybackPreferences();clearBullets();requestAnimationFrame(animate);void status();void setupVoiceMode();
 window.platformRoomSelected=(source,platform,room)=>{if(!SOURCES.includes(source)||!['bilibili','huya','douyu'].includes(platform))return;$('platform'+source).value=platform;$('room'+source).value=String(room);save();void preview(source);};
 for(const source of SOURCES)$('platform'+source).addEventListener('change',()=>{qualityChoices[source]=0;previews[source].revision++;save();void preview(source);});
@@ -624,15 +627,15 @@ window.cleanView=window.FusionWebLayout?.mount({
 });
 function shareRoomId(platform,input){if(!input||/^[A-Za-z0-9_-]{1,80}$/.test(input))return input;try{const url=new URL(input);if(platform==='douyin'&&url.searchParams.get('live_web_rid'))return url.searchParams.get('live_web_rid');const room=url.pathname.split('/').filter(Boolean).at(-1)||'';if(/^[A-Za-z0-9_-]{1,80}$/.test(room))return room;}catch{}throw Error('请使用有效房间号或直播间链接');}
 function sharedRooms(){
- const rooms=SOURCES.map((source,i)=>({platform:$('platform'+source).value,room:shareRoomId($('platform'+source).value,$('room'+source).value.trim()),offset:preferredDelays[source],enabled:$('enabled'+source).checked}));
- if(shareOffsets){const proposed=rooms.map((r,i)=>({...r,offset:Number(shareOffsets[i])}));try{const actual=FusionShare.actuals(proposed);if(SOURCES.every((s,i)=>!proposed[i].enabled||Math.abs(actual[i]-preferredDelays[s])<.01))return FusionShare.validate(proposed);}catch{}}
+ const rooms=SOURCES.map((source,i)=>({platform:$('platform'+source).value,room:shareRoomId($('platform'+source).value,$('room'+source).value.trim()),offset:preferredOffsets[source],enabled:$('enabled'+source).checked}));
+
  return FusionShare.validate(rooms);
 }
 async function applySharedConfig(rooms,start=false){
- rooms=FusionShare.validate(rooms);for(let i=0;i<3;i++)if(![...$('platform'+SOURCES[i]).options].some(o=>o.value===rooms[i].platform))throw Error('当前版本不支持分享码中的平台：'+rooms[i].platform+'，配置未改变');const actual=FusionShare.actuals(rooms);if(actual.some(v=>v>20))throw Error('这份配置需要超过20秒实际延迟，当前移动端上限为20秒，请在PC调整后重新分享');
+ rooms=FusionShare.validate(rooms);for(let i=0;i<3;i++)if(![...$('platform'+SOURCES[i]).options].some(o=>o.value===rooms[i].platform))throw Error('当前版本不支持分享码中的平台：'+rooms[i].platform+'，配置未改变');const actual=FusionShare.actuals(rooms);
  window.cleanView?.exit({restoreMedia:false});if(start)stop();shareOffsets=rooms.map(r=>r.offset);
- SOURCES.forEach((s,i)=>{const r=rooms[i];$('platform'+s).value=r.platform;$('room'+s).value=r.room;$('enabled'+s).checked=r.enabled;preferredDelays[s]=actual[i];$('delay'+s).value=actual[i];$('delay'+s+'Value').textContent=actual[i].toFixed(1)+'s';qualityChoices[s]=0;previews[s].data=null;previews[s].last='';void preview(s);});
- save();refreshViewLayout();notice('已应用三路分享配置，音量保留。');if(start)await connect();
+ SOURCES.forEach((s,i)=>{const r=rooms[i];$('platform'+s).value=r.platform;$('room'+s).value=r.room;$('enabled'+s).checked=r.enabled;preferredOffsets[s]=r.offset;preferredDelays[s]=actual[i];qualityChoices[s]=0;previews[s].data=null;previews[s].last='';void preview(s);});
+ acceptedOffsetSources=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked]));renderOffsets();save();refreshViewLayout();notice('已应用三路分享配置，音量保留。');if(start)await connect();
 }
 window.fusionShareUI=FusionShareUI.mount({read:sharedRooms,apply:applySharedConfig,rpc,notice,collector:shareCollector,
  context:source=>channels[source]?messageContext(source):null,foreground:()=>foreground,
@@ -643,5 +646,8 @@ window.tvController=FusionTV.mount({read:sharedRooms,rpc,restore:()=>{tvPreviewM
  manualPaused=!on;for(const c of Object.values(channels)){c.media.volume=0;if(on)c.play();else c.media.pause();}if(!on)clearBullets();$('pause').textContent=manualPaused?'继续':'暂停';updatePlaybackService();
 }});
 
+$('target').addEventListener('change',()=>{replyDraft=null;if($('replyNote'))$('replyNote').hidden=true;});
 })();
+
+
 

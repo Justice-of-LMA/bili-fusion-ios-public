@@ -8,6 +8,7 @@ enum VoiceSegment {
     static var aiDetail: String { String(cString:fusion_ai_detail()) }
 
     static func process(_ data: Data, strength: Float) -> (Data, Int32) {
+        guard aiEnabled else { return (data,0) }
         var output: UnsafeMutablePointer<UInt8>?, length = 0
         let status = data.withUnsafeBytes { bytes in
             (aiEnabled ? fusion_ai_segment : fusion_voice_segment)(bytes.bindMemory(to: UInt8.self).baseAddress, data.count, strength, &output, &length)
