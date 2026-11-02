@@ -83,9 +83,9 @@ jobs:
           file build/package/Payload/Fusion.app/Fusion | tee artifacts/executable.txt
           lipo -archs build/package/Payload/Fusion.app/Fusion | grep -w arm64
           cd build/package
-          zip -qr ../../artifacts/BiliFusion-iOS-0.2.5-unsigned.ipa Payload
+          zip -qr ../../artifacts/BiliFusion-iOS-0.3.0-unsigned.ipa Payload
           cd ../..
-          python3 scripts/verify-ipa.py artifacts/BiliFusion-iOS-0.2.5-unsigned.ipa > artifacts/verification.json
+          python3 scripts/verify-ipa.py artifacts/BiliFusion-iOS-0.3.0-unsigned.ipa > artifacts/verification.json
           shasum -a 256 artifacts/*.ipa > artifacts/SHA256SUMS.txt
       - name: Discard temporary login session
         if: always() && inputs.login

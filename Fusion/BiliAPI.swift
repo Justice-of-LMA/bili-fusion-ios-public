@@ -108,6 +108,7 @@ import WebKit
         var conf = try await data("/xlive/web-room/v1/index/getDanmuInfo?" + query)
         conf["uid"] = nav.int64("mid"); conf["buvid"] = await value("buvid3"); return conf
     }
+    func messageLimit(room:Int64) async throws -> Int { let info=try await data("/xlive/web-room/v1/index/getInfoByUser?room_id="+String(room));let length=info.obj("property").obj("danmu").int("length");guard length>0 && length<=1000 else{throw FusionError("未取得有效弹幕长度")};return min(40,length) }
     func send(room: Int64, text: String, uid: Int64) async throws -> JSON {
         let text = try Safety.message(text)
         guard !sending, Date().timeIntervalSince(sentAt) >= 5 else { throw FusionError("上一条仍在发送，或发送间隔不足 5 秒") }

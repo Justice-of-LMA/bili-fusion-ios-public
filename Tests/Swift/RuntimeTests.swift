@@ -31,7 +31,7 @@ final class RuntimeTests: XCTestCase {
         throw FusionError("Web runtime test timed out")
     }
     @MainActor func testBundledWebFullscreenControlsAndBridge() async throws {
-        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.3.3" : "0.2.6")
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.4.0" : "0.3.0")
         let web = try appWeb()
         try await waitFor(web, "typeof receiveNative === 'function' && !!document.getElementById('full')")
         let title = try await web.evaluateJavaScript("document.title") as? String
@@ -283,5 +283,15 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(a.player.currentTime().seconds,1,accuracy:0.25)
         a.play(); try await Task.sleep(nanoseconds:1_500_000_000)
         XCTAssertGreaterThan(a.player.currentTime().seconds,1.7)
+    }
+    @MainActor func testThreeSourceControlsAndOfflinePCSharing() async throws {
+        let web=try appWeb();try await waitFor(web,"window.__fusionUIReady===true && !!window.fusionShareUI")
+        let result=try await web.evaluateJavaScript("""
+        (()=>{const ids=['enabledC','roomC','platformC','videoC','viewC','qualityC','chatStatsC','volumeC','delayC','audioOnlyC','chatC','scC','shareConfig'];const valid=ids.every(id=>document.querySelectorAll('#'+id).length===1);const code='延迟分享-[冷][哇][热][耶][微笑][疼][龇牙][害羞][吓][嫌弃][生气][OK][笑][防护][再见]';const rooms=FusionShare.decode(code);return valid&&rooms.length===3&&rooms[1].offset===-3&&FusionShare.encode(rooms)===code&&FusionShare.actuals(rooms).join(',')==='3,0,4'})()
+        """) as? Bool
+        XCTAssertEqual(result,true)
+        let delegate=try XCTUnwrap(UIApplication.shared.delegate as? AppDelegate)
+        let controller=try XCTUnwrap(delegate.window?.rootViewController as? FusionController)
+        XCTAssertEqual(Set(controller.lifecycleState().obj("players").keys),Set(["A","B","C"]))
     }
 }

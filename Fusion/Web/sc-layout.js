@@ -13,17 +13,17 @@
    try{const stored=load();if(stored)value={x:unit(stored.x),y:unit(stored.y)};}catch{}
    function apply(){
      if(disposed)return;
-     const w=host.clientWidth,h=host.clientHeight;
+     const anchor=typeof host==='function'?host():host,w=anchor.clientWidth,h=anchor.clientHeight;
      node.style.width=Math.max(1,Math.min(280,w*.55,w-16))+'px';node.style.maxHeight=Math.max(1,Math.min(h*.5,h-16-bottom()))+'px';
      const r=geometry(w,h,node.offsetWidth,node.offsetHeight,value.x,value.y,8,bottom());
      node.style.right='auto';node.style.bottom='auto';node.style.left=r.left+'px';node.style.top=r.top+'px';
    }
    function set(v,persist=false){value={x:unit(v.x),y:unit(v.y)};apply();if(persist)save({...value});}
-   node.addEventListener('pointerdown',e=>{const card=e.target.closest('.sc');if(!enabled||e.button!==0||!card||e.target.closest('button,a,input,select'))return;node.setPointerCapture(e.pointerId);e.stopPropagation();const r=geometry(host.clientWidth,host.clientHeight,node.offsetWidth,node.offsetHeight,value.x,value.y,8,bottom());drag={id:e.pointerId,x:e.clientX,y:e.clientY,start:{...value},rx:r.rangeX,ry:r.rangeY,moved:false};});
+   node.addEventListener('pointerdown',e=>{const card=e.target.closest('.sc');if(!enabled||e.button!==0||!card||e.target.closest('button,a,input,select'))return;node.setPointerCapture(e.pointerId);e.stopPropagation();const anchor=typeof host==='function'?host():host;const r=geometry(anchor.clientWidth,anchor.clientHeight,node.offsetWidth,node.offsetHeight,value.x,value.y,8,bottom());drag={id:e.pointerId,x:e.clientX,y:e.clientY,start:{...value},rx:r.rangeX,ry:r.rangeY,moved:false};});
    node.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>5)drag.moved=true;if(drag.moved)set({x:drag.start.x+dx/Math.max(1,drag.rx),y:drag.start.y+dy/Math.max(1,drag.ry)});});
    const finish=e=>{if(!drag||e.pointerId!==drag.id)return;const moved=drag.moved;drag=null;if(moved)save({...value});};
    node.addEventListener('pointerup',finish);node.addEventListener('pointercancel',finish);
-   const observer=new ResizeObserver(apply);observer.observe(host);observer.observe(node);const mutation=new MutationObserver(apply);mutation.observe(node,{childList:true});apply();
+   const observer=new ResizeObserver(apply);for(const anchor of typeof host==='function'?[...document.querySelectorAll('.video-view')]:[host])observer.observe(anchor);observer.observe(node);const mutation=new MutationObserver(apply);mutation.observe(node,{childList:true});apply();
    return {set,setDraggable:on=>{enabled=!!on;if(!enabled)drag=null;node.classList.toggle('sc-pass-through',!enabled);},get:()=>({...value}),corner:name=>{const p=corners[name];if(p)set({x:p[0],y:p[1]},true);},destroy:()=>{disposed=true;observer.disconnect();mutation.disconnect();}};
  }
  const api={geometry,mount,corners};if(typeof module!=='undefined')module.exports=api;else window.SCLayout=api;

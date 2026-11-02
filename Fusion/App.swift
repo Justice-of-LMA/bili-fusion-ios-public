@@ -39,7 +39,7 @@ import WebKit
     private(set) var backgroundMode="audio",orientationChoice="auto"
     private var inBackground=false,accountPresented=false,lifecycleDetail=""
     private var orientationMask:UIInterfaceOrientationMask{orientationChoice=="landscape" ? .landscape:orientationChoice=="portrait" ? .portrait:UIDevice.current.userInterfaceIdiom == .pad ? .all:.allButUpsideDown}
-    private let players = ["A": NativePlayer(), "B": NativePlayer()]
+    private let players = ["A": NativePlayer(), "B": NativePlayer(), "C": NativePlayer()]
     private var sockets = [String: any ChatConnection](), learned = [String: [JSON]]()
     private var timer: Timer?, full = false, ready = false
     private var bridgeBudget=BridgeBudget()
@@ -186,6 +186,11 @@ import WebKit
         let platform=a.str("platform").isEmpty ? "bilibili":a.str("platform")
         guard ["bilibili","huya","douyu"].contains(platform) else { throw FusionError("不支持的平台") }
         switch op {
+        case "clipboardWrite":
+            let text=a.str("text");guard text.count<=16384 else{throw FusionError("复制内容过长")};UIPasteboard.general.string=text
+        case "clipboardRead":
+            let text=UIPasteboard.general.string ?? "";guard text.count<=16384 else{throw FusionError("剪贴板内容过长")};return ["text":text]
+        case "messageLimit":return ["length":try await api.messageLimit(room:Safety.room(a.str("room")))]
         case "blockingGet": return BlockRules.load()
         case "blockingSet":
             let rules = BlockRules.save(a.obj("rules")); messagePiP.setBlocking(rules); return rules
@@ -210,7 +215,7 @@ import WebKit
         case "stopChat": stopSockets()
         case "startChat":
             let source=a.str("source"),epoch=a.str("epoch"),room=try PlatformRoom.id(platform,a.str("room"))
-            guard ["A","B"].contains(source), epoch.matches("^[A-Za-z0-9-]{1,80}$") else { throw FusionError("连接参数无效") }
+            guard ["A","B","C"].contains(source), epoch.matches("^[A-Za-z0-9-]{1,80}$") else { throw FusionError("连接参数无效") }
             sockets[source]?.close()
             if source == "B" {
                 pipPlatform=platform;pipRoom = room; messagePiP.selectRoom(pipRoom,title:a.str("title").isEmpty ? "二路消息 · \(room)" : a.str("title"),platform:platform)
@@ -258,7 +263,7 @@ import WebKit
             let opened = await UIApplication.shared.open(scheme)
             if !opened { let fallback = await UIApplication.shared.open(URL(string: receipt)!); if !fallback { throw FusionError("无法打开支付宝，请使用收款码") } }
         case "mediaWebURL":
-            let source=a.str("source");guard ["A","B"].contains(source),a.str("token").matches("^[A-Za-z0-9-]{1,100}$"),let url=URL(string:a.str("url")),Safety.media(url) else{throw FusionError("媒体地址无效")};if videoPiP.source==source{videoPiP.stop()};players[source]?.close();try await proxy.start();return ["url":try proxy.register(url,owner:proxy.begin(source,token:a.str("token"))).absoluteString]
+            let source=a.str("source");guard ["A","B","C"].contains(source),a.str("token").matches("^[A-Za-z0-9-]{1,100}$"),let url=URL(string:a.str("url")),Safety.media(url) else{throw FusionError("媒体地址无效")};if videoPiP.source==source{videoPiP.stop()};players[source]?.close();try await proxy.start();return ["url":try proxy.register(url,owner:proxy.begin(source,token:a.str("token"))).absoluteString]
         case "voiceMode": return ["ai":VoiceSegment.aiEnabled]
         case "mediaVoice":
             let strength=(a["strength"] as? NSNumber)?.floatValue ?? 0
@@ -275,7 +280,7 @@ import WebKit
                 if source == "B" { messagePiP.stop() }
                 guard let url = URL(string: a.str("url")), Safety.media(url) else { throw FusionError("直播线路无效") }
                 try await proxy.start()
-                p.open(url: try proxy.register(url,owner:proxy.begin(source,token:token)), token: token, volume: (a["volume"] as? NSNumber)?.floatValue ?? 1, audioOnly: source == "B" && a["audioOnly"] as? Bool == true); applyLayout()
+                p.open(url: try proxy.register(url,owner:proxy.begin(source,token:token)), token: token, volume: (a["volume"] as? NSNumber)?.floatValue ?? 1, audioOnly: a["audioOnly"] as? Bool == true); applyLayout()
                 if source=="A",backgroundMode=="video-pip",!messagePiP.enabled{try? videoPiP.prepareAutomatic(p,source:source)}
                 UIApplication.shared.isIdleTimerDisabled = true
             } else if token == p.token {
@@ -284,7 +289,7 @@ import WebKit
                 case "mediaPause": p.pause()
                 case "mediaSeek": try await p.seek((a["time"] as? NSNumber)?.doubleValue ?? .nan); return ["ok":true,"state":p.snapshot()]
                 case "mediaVolume": p.player.volume = max(0, min(1, (a["volume"] as? NSNumber)?.floatValue ?? 1))
-                case "mediaAudioOnly": p.setAudioOnly(source == "B" && a["value"] as? Bool == true)
+                case "mediaAudioOnly": p.setAudioOnly( a["value"] as? Bool == true)
                 default: if source == "B" { messagePiP.stop() };if videoPiP.source==source{videoPiP.stop()};p.close(); UIApplication.shared.isIdleTimerDisabled = players.values.contains { !$0.token.isEmpty }
                 }
             }
@@ -308,7 +313,7 @@ import WebKit
         present(nav, animated: true)
     }
     private func layout(_ args: JSON) {
-        for source in ["A","B"] {
+        for source in ["A","B","C"] {
             let d = args.obj(source)
             func number(_ key: String) -> CGFloat { CGFloat((d[key] as? NSNumber)?.doubleValue ?? 0) }
             let rect = CGRect(x: number("x"), y: number("y"), width: number("width"), height: number("height"))

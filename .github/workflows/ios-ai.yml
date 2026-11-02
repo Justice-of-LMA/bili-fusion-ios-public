@@ -73,9 +73,9 @@ jobs:
           file build/package/Payload/Fusion.app/Fusion | tee artifacts/executable.txt
           lipo -archs build/package/Payload/Fusion.app/Fusion | grep -w arm64
           cd build/package
-          zip -qr ../../artifacts/BiliFusion-iOS-AI-0.3.2-unsigned.ipa Payload
+          zip -qr ../../artifacts/BiliFusion-iOS-AI-0.4.0-unsigned.ipa Payload
           cd ../..
-          python3 scripts/verify-ipa.py artifacts/BiliFusion-iOS-AI-0.3.2-unsigned.ipa --ai > artifacts/verification.json
+          python3 scripts/verify-ipa.py artifacts/BiliFusion-iOS-AI-0.4.0-unsigned.ipa --ai > artifacts/verification.json
           shasum -a 256 artifacts/*.ipa > artifacts/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         if: always()

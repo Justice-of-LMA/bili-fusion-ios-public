@@ -1,7 +1,8 @@
 (()=>{
 'use strict';
+const SOURCES=['A','B','C'];
 const $=id=>document.getElementById(id),C=FusionCore,waiters=new Map();let sequence=0,generation=0,channels={},manualPaused=false,foreground=true,account={loggedIn:false},full=false;
-const qualityChoices={A:0,B:0},preferredDelays={A:0,B:0};let preferredDual=false,inVideoPiP=false;
+const qualityChoices={A:0,B:0,C:0},preferredDelays={A:0,B:0,C:0};let shareOffsets=null;let preferredDual=false,inVideoPiP=false;
 let pipEnabled=false,pipBusy=false,aiVoiceMode=false,voiceFailure="";
 let hideTimer,frame=0,lastPump=0,historyCount=0,lastChatStats=0;
 const stage=$('stage'),bulletLayer=$('bullets'),cardLayer=$('cards'),lanes=new C.Lanes();
@@ -30,7 +31,8 @@ function applyBlocked(value){
  flying=flying.filter(b=>b.el.isConnected);renderCards();
 }
 const blockPanel=FusionBlockingUI.mount({read:()=>rpc('blockingGet'),write:rules=>rpc('blockingSet',{rules}),changed:applyBlocked});
-const messageMenu=FusionDanmaku.menu({blockUser:(m,p)=>blockPanel.blockUser(m,p),blockText:text=>blockPanel.blockText(text),
+const shareCollector=new FusionShare.Collector();
+const messageMenu=FusionDanmaku.menu({copy:text=>rpc('clipboardWrite',{text}),share:(message,context)=>{const code=shareCollector.complete(message,context);return code?()=>applySharedConfig(FusionShare.decode(code),true):null;},shareProgress:(message,context)=>shareCollector.progress(message,context),blockUser:(m,p)=>blockPanel.blockUser(m,p),blockText:text=>blockPanel.blockText(text),
  active:c=>foreground&&c.generation===generation&&channels[c.source]?.epoch===c.epoch&&String(channels[c.source]?.room?.room)===c.room&&(channels[c.source]?.room?.platform||'bilibili')===c.platform,
  send:async(text,c)=>{if(c.platform==='bilibili'&&!account.loggedIn)throw Error('请先登录 B站');const reply=await rpc('send',{room:c.room,platform:c.platform,text,uid:account.uid});if(reply?.submitted!==true)throw Error('未收到明确提交确认，没有重发');return '已提交到 '+c.source+'；平台确认不保证所有观众可见。';}});
 function messageContext(source){const c=channels[source];return {source,platform:c?.room?.platform||'bilibili',room:String(c?.room?.room||''),epoch:c?.epoch,generation};}
@@ -41,30 +43,30 @@ window.__fusionVoiceStatus=value=>{if(voiceFailure){$('voiceStatus').textContent
 const blockButton=document.createElement('button');blockButton.id='blockingSettings';blockButton.textContent='用户 / 关键词屏蔽';blockButton.onclick=()=>blockPanel.open();
 $('settings').append(blockButton);
 window.openBlocking=()=>blockPanel.open();
-const ids=['backgroundMode','screenOrientation','voiceA','voiceStrength','volumeA','volumeB','size','chatSpeed','opacity','font','color','marker','chatA','chatB','scA','scB','user','original','chatArea','maxRows','audioOnlyB','nonOverlap','mergeSame','scDraggable','pipRows','pipSize','pipUser','platformA','platformB'];
+const ids=['enabledA','enabledB','enabledC','audioOnlyA','audioOnlyC','volumeC','chatC','scC','platformC','backgroundMode','screenOrientation','voiceA','voiceStrength','volumeA','volumeB','size','chatSpeed','opacity','font','color','marker','chatA','chatB','scA','scB','user','original','chatArea','maxRows','audioOnlyB','nonOverlap','mergeSame','scDraggable','pipRows','pipSize','pipUser','platformA','platformB'];
 function save(){
-  const config={roomA:$('roomA').value,roomB:$('roomB').value};
+  const config={roomA:$('roomA').value,roomB:$('roomB').value,roomC:$('roomC').value,shareOffsets};
   for(const id of ids)config[id]=$(id).type==='checkbox'?$(id).checked:$(id).value;
-  config.qualityA=qualityChoices.A;config.qualityB=qualityChoices.B;config.delayA=preferredDelays.A;config.delayB=preferredDelays.B;config.dual=document.body.classList.contains('dual');
+  config.qualityC=qualityChoices.C;config.delayC=preferredDelays.C;config.qualityA=qualityChoices.A;config.qualityB=qualityChoices.B;config.delayA=preferredDelays.A;config.delayB=preferredDelays.B;config.dual=document.body.classList.contains('dual');
   window.cleanView?.preserve(config);
   try{localStorage.setItem('fusion-mobile-v1',JSON.stringify(config));}catch{}
 }
 try{
   const conf=JSON.parse(localStorage.getItem('fusion-mobile-v1')||'{}');
-  preferredDual=conf.dual===true;
-  for(const source of ['A','B']){preferredDelays[source]=C.clamp(Number(conf['delay'+source])||0,0,20);$('delay'+source).value=preferredDelays[source];$('delay'+source+'Value').textContent=preferredDelays[source].toFixed(1)+'s';}
-  for(const s of ['A','B'])qualityChoices[s]=Number.isInteger(conf['quality'+s])&&conf['quality'+s]>=0&&conf['quality'+s]<=100000?conf['quality'+s]:0;
-  for(const id of [...ids,'roomA','roomB'])if(Object.hasOwn(conf,id)){
+  preferredDual=conf.dual===true;shareOffsets=Array.isArray(conf.shareOffsets)&&conf.shareOffsets.length===3?conf.shareOffsets:null;
+  for(const source of SOURCES){preferredDelays[source]=C.clamp(Number(conf['delay'+source])||0,0,20);$('delay'+source).value=preferredDelays[source];$('delay'+source+'Value').textContent=preferredDelays[source].toFixed(1)+'s';}
+  for(const s of SOURCES)qualityChoices[s]=Number.isInteger(conf['quality'+s])&&conf['quality'+s]>=0&&conf['quality'+s]<=100000?conf['quality'+s]:0;
+  for(const id of [...ids,'roomA','roomB','roomC'])if(Object.hasOwn(conf,id)){
     const e=$(id);if(e.type==='checkbox')e.checked=!!conf[id];else e.value=conf[id];
   }
 }catch{}
 if(!['audio','pause'].includes($('backgroundMode').value))$('backgroundMode').value='audio';
 if(!['auto','portrait','landscape'].includes($('screenOrientation').value))$('screenOrientation').value='auto';
-const scLayout=SCLayout.mount(cardLayer,$('viewA'),{load:()=>JSON.parse(localStorage.getItem('fusion-ios-sc-position')||'null'),save:p=>localStorage.setItem('fusion-ios-sc-position',JSON.stringify(p)),bottom:()=>Math.min(64,$('viewA').clientHeight*.13)});
+const scLayout=SCLayout.mount(cardLayer,()=>mainView(),{load:()=>JSON.parse(localStorage.getItem('fusion-ios-sc-position')||'null'),save:p=>localStorage.setItem('fusion-ios-sc-position',JSON.stringify(p)),bottom:()=>Math.min(64,mainView().clientHeight*.13)});
 scLayout.setDraggable($('scDraggable').checked);
 $('scCorner').onchange=()=>scLayout.corner($('scCorner').value);
 function updateLabels(){
-  for(const s of ['A','B'])$('volume'+s+'Value').textContent=$('volume'+s).value+'%';
+  for(const s of SOURCES)$('volume'+s+'Value').textContent=$('volume'+s).value+'%';
   $('chatSpeedValue').textContent=Number($('chatSpeed').value).toFixed(1)+' 倍';lanes.setSpeed($('chatSpeed').value,flying,bulletLayer.clientWidth);
   $('sizeValue').textContent=$('size').value+'px';$('opacityValue').textContent=$('opacity').value+'%';
   $('maxRowsValue').textContent=$('maxRows').value+' 行';
@@ -73,7 +75,7 @@ async function status(){
   try{account=await rpc('status');$('login').textContent='账号 / 登录';}
   catch{account={loggedIn:false};$('login').textContent='账号 / 登录';}
 }
-const previews={A:{},B:{}},following={source:'A',page:0,revision:0,busy:false,seen:new Set()};
+const previews={A:{},B:{},C:{}},following={source:'A',page:0,revision:0,busy:false,seen:new Set()};
 function roomCard(source,data){
   const el=$('preview'+source);el.replaceChildren();
   const url=C.roomImageUrl(data.cover||data.face);
@@ -119,7 +121,7 @@ async function loadFollowing(reset=false){
   finally{if(revision===following.revision)following.busy=false;}
 }
 function closeFollowing(){following.revision++;following.busy=false;following.seen.clear();$('followingList').replaceChildren();$('following').close();}
-for(const source of ['A','B']){
+for(const source of SOURCES){
   $('room'+source).addEventListener('input',()=>{save();clearTimeout(previews[source].timer);previews[source].timer=setTimeout(()=>preview(source),800);});
   $('room'+source).addEventListener('blur',()=>{clearTimeout(previews[source].timer);void preview(source);});
   $('follow'+source).onclick=()=>{const platform=$('platform'+source).value;if(platform!=='bilibili'){void rpc('platformFollowing',{platform,source}).catch(e=>notice(e.message,true));return;}following.source=source;$('followingTitle').textContent='选择 '+source+' · 正在直播的关注';$('following').showModal();void loadFollowing(true);};
@@ -150,6 +152,7 @@ $('donationOpen').onclick=async()=>{
 };
 window.handleBack=()=>{
   if(messageMenu.close())return true;
+  if(window.fusionShareUI?.close())return true;
   if(blockPanel.close())return true;
   if($('donation').open){if(!$('donationWechatPanel').hidden)donationMethods();else $('donation').close();return true;}
   if($('following').open){closeFollowing();return true;}
@@ -162,7 +165,7 @@ function clearBullets(){
   messageMenu.close();for(const b of flying)b.el.remove();flying=[];
   const area=C.clamp($('chatArea').value,25,100);
   // Always derive the percentage from A's full viewport, never the already-clipped layer.
-  bulletLayout=C.laneLayout($('viewA').getBoundingClientRect().height,Number($('size').value),area,Number($('maxRows').value));
+  bulletLayout=C.laneLayout(mainView().getBoundingClientRect().height,Number($('size').value),area,Number($('maxRows').value));
   bulletLayer.style.height=area+'%';lanes.reset(bulletLayout.count);
 }
 function clearSourceBullets(source){for(const b of flying){b.group.filter((m,c)=>c.source!==source);if(!b.group.members.length)b.el.remove();else refreshBulletGroup(b);}flying=flying.filter(b=>b.el.isConnected);messageMenu.close();}
@@ -178,6 +181,7 @@ function appendContent(parent,event){
 }
 function addHistory(event,source){
   if(blocked(event,source))return;
+  shareCollector.receive(event,messageContext(source));
   if(historyCount===0)$('history').replaceChildren();
   const row=document.createElement('div');row.className='history-row';row.dataset.source=source;
   const tag=document.createElement('span');tag.className='source';tag.textContent=source+(event.type==='sc'?' · ¥'+event.price:'');
@@ -270,7 +274,7 @@ class Channel{
     if(!source){this.renderStatus('直播线路失败，请重新连接');return;}
     if(!foreground){this.suspended=true;this.renderStatus('已暂停连接，点击继续恢复');return;}
     this.media.volume=Number($('volume'+this.source).value)/100;
-    this.media.audioOnly=this.source==='B'&&$('audioOnlyB').checked;
+    this.media.audioOnly=$('audioOnly'+this.source).checked;
     try{
       const revision=(this.mediaRevision||0)+1;this.mediaRevision=revision;
       this.media.open(source.url,source.type).then(()=>{if(!this.closed&&this.mediaRevision===revision){this.play();if(this.source==='A')void applyVoice();window.iosLayout();}}).catch(e=>{if(!this.closed&&this.mediaRevision===revision)this.fallback(e.message);});
@@ -358,7 +362,7 @@ function stop(){
   for(const c of Object.values(channels))c.close();channels={};
   rpc('stopChat').catch(()=>{});manualPaused=false;updatePlaybackService();clearBullets();cardLayer.replaceChildren();scNodes.clear();
   $('placeholder').hidden=false;$('pause').disabled=$('live').disabled=$('stop').disabled=true;$('pause').textContent='暂停';
-  for(const s of ['A','B']){
+  for(const s of SOURCES){
     $('video'+s).style.visibility='hidden';$('status'+s).textContent='尚未连接';$('delay'+s).value=String(preferredDelays[s]);$('delay'+s+'Value').textContent=preferredDelays[s].toFixed(1)+'s';
     $('quality'+s).replaceChildren(new Option('自动（默认档位）','0'));$('quality'+s).disabled=true;$('quality'+s+'State').textContent='开始融合后读取可选清晰度';
   }
@@ -366,10 +370,11 @@ function stop(){
 async function connect(){
   stop();const gen=generation;$('connect').disabled=true;save();notice('正在读取两路直播…');
   try{
-    const rooms=await Promise.all(['A','B'].map(s=>rpc('resolve',{room:$('room'+s).value.trim(),platform:$('platform'+s).value,quality:qualityChoices[s],voice:s==='A'&&$('voiceA').checked}).catch(e=>{throw Error(s+' 房间：'+e.message);})));
-    if(gen!==generation)return;
-    if((rooms[0].platform||'bilibili')===(rooms[1].platform||'bilibili')&&String(rooms[0].room)===String(rooms[1].room))throw Error('A 和 B 指向同一个房间，请选择不同的两路直播间');
-    for(let i=0;i<2;i++){const s=['A','B'][i],epoch=gen+'-'+s+'-'+Date.now(),c=new Channel(s,rooms[i],epoch);channels[s]=c;$('title'+s).textContent=rooms[i].title;c.open();}
+    const activeSources=selectedSources();
+    const rooms=await Promise.all(activeSources.map(s=>rpc('resolve',{room:$('room'+s).value.trim(),platform:$('platform'+s).value,quality:qualityChoices[s],voice:s==='A'&&$('voiceA').checked}).catch(e=>{throw Error(s+' 房间：'+e.message);})));
+    if(gen!==generation||!foreground)return;
+    const distinct=new Set();for(const room of rooms){const key=(room.platform||'bilibili')+':'+room.room;if(distinct.has(key))throw Error('已选直播间存在重复，请选择不同房间');distinct.add(key);}
+    for(let i=0;i<activeSources.length;i++){const source=activeSources[i],epoch=gen+'-'+source+'-'+Date.now(),c=new Channel(source,rooms[i],epoch);channels[source]=c;$('title'+source).textContent=rooms[i].title;c.open();}refreshViewLayout();
     $('placeholder').hidden=true;$('pause').disabled=$('live').disabled=$('stop').disabled=false;
     for(const c of Object.values(channels))void messages(c);updatePlaybackService();
     notice('直播流已获取。消息连接状态见下方；必要时先在官方页面完成登录验证。');
@@ -390,8 +395,8 @@ function createCard(m){
 function renderCards(){
   if(manualPaused){cardLayer.replaceChildren();scNodes.clear();return;}
   cardLayer.hidden=manualPaused;
-  const by={A:[],B:[]};
-  for(const s of ['A','B']){
+  const by={A:[],B:[],C:[]};
+  for(const s of SOURCES){
     const c=channels[s];if(!c)continue;
     const time=c.media.currentTime;
     for(const m of c.timeline.cards(time)){
@@ -402,7 +407,7 @@ function renderCards(){
   }
   if(window.cleanView?.active){cardLayer.replaceChildren();scNodes.clear();return;}
   // Keep at least the newest card from either active room before filling remaining space.
-  const selected=[by.A.at(-1),by.B.at(-1)].filter(Boolean),rest=[...by.A.slice(0,-1),...by.B.slice(0,-1)].sort((a,b)=>b.received-a.received);
+  const selected=SOURCES.map(s=>by[s].at(-1)).filter(Boolean),rest=SOURCES.flatMap(s=>by[s].slice(0,-1)).sort((a,b)=>b.received-a.received);
   selected.push(...rest.slice(0,Math.max(0,3-selected.length)));selected.sort((a,b)=>b.received-a.received);
   const wanted=new Set(selected.map(m=>m.key));
   for(const [key,n] of scNodes)if(!wanted.has(key)){n.el.remove();scNodes.delete(key);}
@@ -429,7 +434,7 @@ function animate(now){
     if(item.age>=item.duration){item.el.remove();flying.splice(flying.indexOf(item),1);}
     else item.el.style.transform='translateX('+(-lanes.speed*item.age)+'px)';
   }
-  renderCards();if(now-lastChatStats>=500){lastChatStats=now;for(const s of ['A','B']){$('chatStats'+s).textContent=s+' · 已接收 '+(channels[s]?.receivedChats||0)+' 条 · 已显示 '+(channels[s]?.displayedChats||0)+' 条';}}
+  renderCards();if(now-lastChatStats>=500){lastChatStats=now;for(const s of SOURCES){$('chatStats'+s).textContent=s+' · 已接收 '+(channels[s]?.receivedChats||0)+' 条 · 已显示 '+(channels[s]?.displayedChats||0)+' 条';}}
   if(foreground&&Object.keys(channels).length)frame=requestAnimationFrame(animate);else setTimeout(()=>{frame=requestAnimationFrame(animate);},250);
 }
 function wake(){
@@ -487,14 +492,14 @@ for(const id of ids)$(id).addEventListener('input',()=>{
   else if(id==='scDraggable'){scLayout.setDraggable($(id).checked);}
   else if(id.startsWith('pip')){if(pipEnabled)void rpc('pipSettings',pipSettings()).catch(e=>notice(e.message,true));}
   else if(id==='voiceA'||id==='voiceStrength'){void applyVoice();}
-  else if(id==='audioOnlyB'){if(pipEnabled)$('audioOnlyB').checked=true;applyAudioMode();}
+  else if(id.startsWith('audioOnly')){if(typeof pipEnabled!=='undefined'&&pipEnabled&&id==='audioOnlyB')$('audioOnlyB').checked=true;applyAudioMode(id.slice(-1));}
   else if(id.startsWith('volume')){const s=id.slice(-1);if(channels[s])channels[s].media.volume=Number($(id).value)/100;}
   else if(id==='chatSpeed'){/* Scroll only: preserve position, media clocks and SC lifetime. */}
-  else if(id==='chatA'||id==='chatB'){if(!$(id).checked)clearSourceBullets(id.slice(-1));}
-  else if(id!=='scA'&&id!=='scB'){clearBullets();if(id==='marker'){cardLayer.replaceChildren();scNodes.clear();}}
+  else if(/^chat[ABC]$/.test(id)){if(!$(id).checked)clearSourceBullets(id.slice(-1));}
+  else if(!/^sc[ABC]$/.test(id)){clearBullets();if(id==='marker'){cardLayer.replaceChildren();scNodes.clear();}}
   if(pipEnabled&&(id==='chatB'||id==='scB'||id==='mergeSame'))void rpc('pipSettings',pipSettings()).catch(()=>{});
 });
-for(const s of ['A','B']){
+for(const s of SOURCES){
   $('quality'+s).onchange=()=>void changeQuality(s);
   $('delay'+s).oninput=()=>{$('delay'+s+'Value').textContent=Number($('delay'+s).value).toFixed(1)+'s';};
   $('delay'+s).onchange=()=>{const value=C.clamp(Number($('delay'+s).value),0,20),c=channels[s];if(c)c.applyDelay(value);else{preferredDelays[s]=value;save();notice('已记住 '+s+' 延迟，开始播放后自动积累缓冲应用。');}};
@@ -511,9 +516,18 @@ $('live').onclick=()=>{
 $('settingsToggle').onclick=()=>{$('settings').hidden=!$('settings').hidden;wake();};
 $('settingsClose').onclick=()=>{$('settings').hidden=true;wake();};
 $('full').onclick=()=>setFull(!full);$('wake').onclick=wake;
-function applyAudioMode(){const on=$('audioOnlyB').checked;if(on)setDual(false);const c=channels.B;if(c?.media.webMode&&c.media.audioOnly!==on){c.media._audioOnly=on;clearSourceBullets('B');c.open();void messages(c);notice('B 声音模式已手动切换，保留该路设置的额外延迟，请核对同步。');}else if(c)c.media.audioOnly=on;}
-function setDual(on){window.FusionVideoZoom?.resetAll();document.body.classList.toggle('dual',on);preferredDual=on;save();$('dual').textContent=on?'单画面':'双画面';$('dual').setAttribute('aria-pressed',String(on));$('viewB').setAttribute('aria-hidden',String(!on));clearBullets();wake();}
-$('dual').onclick=()=>{if(pipEnabled){notice('请先关闭消息画中画，再恢复双路画面');return;}const on=!document.body.classList.contains('dual');if(on&&$('audioOnlyB').checked){$('audioOnlyB').checked=false;applyAudioMode();save();}setDual(on);};
+function applyAudioMode(source='B'){const on=$('audioOnly'+source).checked,c=channels[source];if(c){
+ if(window.IOSMedia&&!c.media.webMode)c.media.audioOnly=on;
+ else if((c.media.webMode?!!c.media.audioOnly:c.media.tagName==='AUDIO')!==on){if(c.media.webMode)c.media._audioOnly=on;clearSourceBullets(source);c.open();notice(source+' 已手动切换声音模式，保留原延迟。');}
+ }refreshViewLayout();}
+function selectedSources(){const sources=SOURCES.filter(s=>$('enabled'+s).checked);if(!sources.length)throw Error('请至少启用一个直播间');return sources;}
+function mainView(){return $('view'+(document.body.dataset.mainSource||'A'));}
+function refreshViewLayout(){const active=Object.keys(channels).length?SOURCES.filter(s=>channels[s]):SOURCES.filter(s=>$('enabled'+s).checked);const video=active.filter(s=>!$('audioOnly'+s).checked),main=video[0]||active[0]||'A',others=video.filter(s=>s!==main);document.body.dataset.mainSource=main;document.body.dataset.visibleCount=video.length;for(const source of SOURCES){const role=source===main?'main':others.indexOf(source)>=0?'side'+(others.indexOf(source)+1):'hidden';$('view'+source).dataset.role=role;$('view'+source).setAttribute('aria-hidden',String(role==='hidden'||role!=='main'&&!document.body.classList.contains('dual')));}mainView().append(bulletLayer,cardLayer);window.iosLayout?.();}
+function setDual(on){window.FusionVideoZoom?.resetAll();document.body.classList.toggle('dual',on);preferredDual=on;refreshViewLayout();save();$('dual').textContent=on?'主画面':'多画面';$('dual').setAttribute('aria-pressed',String(on));clearBullets();wake();}
+function showAllViews(){if(typeof pipEnabled!=='undefined'&&pipEnabled){notice('请先关闭消息画中画');return;}for(const source of SOURCES)if(channels[source]||$('enabled'+source).checked){$('audioOnly'+source).checked=false;applyAudioMode(source);}setDual(true);}
+$('dual').onclick=()=>document.body.classList.contains('dual')?setDual(false):showAllViews();$('threeView').onclick=showAllViews;
+$('audioBC').onclick=()=>{for(const source of ['B','C']){$('audioOnly'+source).checked=true;applyAudioMode(source);}save();};
+document.addEventListener('fusion-source-selection',()=>{save();if(!Object.keys(channels).length)refreshViewLayout();});
 function hideChrome(){clearTimeout(hideTimer);$('settings').hidden=true;stage.querySelector('input:focus,select:focus')?.blur();stage.classList.add('quiet');}
 stage.addEventListener('click',e=>{
   if(e.target.closest('button,input,select,textarea,a,#settings,.sc,.bullet,[role="dialog"]'))return;
@@ -529,7 +543,7 @@ window.pipState=(state,detail)=>{
   $('pip').textContent=$('pipSettingsToggle').textContent=pipEnabled?'关闭消息画中画':'二路消息画中画';
   $('pipStatus').textContent=detail;notice(detail,state==='error');
   if(state==='active'){
-    channels.A?.suspend();manualPaused=false;$('pause').textContent='暂停';clearBullets();
+    for(const c of Object.values(channels))if(c.source!=='B')c.suspend();manualPaused=false;$('pause').textContent='暂停';clearBullets();
     $('audioOnlyB').checked=true;applyAudioMode();$('settings').hidden=true;
   }
 };
@@ -585,9 +599,9 @@ async function sendMessage(both){
 }
 $('composer').onsubmit=e=>{e.preventDefault();void sendMessage(false);};
 $('sendBoth').onclick=()=>void sendMessage(true);
-new ResizeObserver(clearBullets).observe($('viewA'));updateLabels();setDual(preferredDual&&!$('audioOnlyB').checked);void syncPlaybackPreferences();clearBullets();requestAnimationFrame(animate);void status();void setupVoiceMode();
-window.platformRoomSelected=(source,platform,room)=>{if(!['A','B'].includes(source)||!['bilibili','huya','douyu'].includes(platform))return;$('platform'+source).value=platform;$('room'+source).value=String(room);save();void preview(source);};
-for(const source of ['A','B'])$('platform'+source).addEventListener('change',()=>{qualityChoices[source]=0;previews[source].revision++;save();void preview(source);});
+SOURCES.forEach(source=>new ResizeObserver(clearBullets).observe($('view'+source)));updateLabels();setDual(preferredDual&&!$('audioOnlyB').checked);void syncPlaybackPreferences();clearBullets();requestAnimationFrame(animate);void status();void setupVoiceMode();
+window.platformRoomSelected=(source,platform,room)=>{if(!SOURCES.includes(source)||!['bilibili','huya','douyu'].includes(platform))return;$('platform'+source).value=platform;$('room'+source).value=String(room);save();void preview(source);};
+for(const source of SOURCES)$('platform'+source).addEventListener('change',()=>{qualityChoices[source]=0;previews[source].revision++;save();void preview(source);});
 void preview('A');void preview('B');
 document.querySelector('a[href="licenses.html"]').onclick=async e=>{
   e.preventDefault();$('legal').hidden=false;$('legalText').textContent='正在读取本地许可…';
@@ -604,12 +618,25 @@ window.cleanView=window.FusionWebLayout?.mount({
  clear:()=>{clearBullets();cardLayer.replaceChildren();scNodes.clear();},
  rotate:()=>{const value=innerWidth>innerHeight?'portrait':'landscape';$('screenOrientation').value=value;save();void rpc('orientation',{value}).catch(e=>notice(e.message,true));},
  audio:(enter,snapshot,restoreMedia=true)=>{
-  const on=enter?true:snapshot.audioOnlyB;$('audioOnlyB').checked=on;setDual(enter?false:snapshot.dual);
-  const c=channels.B;if(c&&restoreMedia){
-   if(window.IOSMedia&&!c.media.webMode)c.media.audioOnly=on;
-   else if((c.media.webMode?!!c.media.audioOnly:c.media.tagName==='AUDIO')!==on){if(c.media.webMode)c.media._audioOnly=on;c.open();}
-  }
+  for(const source of ['B','C']){const on=enter?true:snapshot['audioOnly'+source];$('audioOnly'+source).checked=on;const c=channels[source];if(c&&restoreMedia){if(window.IOSMedia&&!c.media.webMode)c.media.audioOnly=on;else if((c.media.webMode?!!c.media.audioOnly:c.media.tagName==='AUDIO')!==on){if(c.media.webMode)c.media._audioOnly=on;c.open();}}}setDual(enter?false:snapshot.dual);
  }
 });
+function shareRoomId(platform,input){if(!input||/^[A-Za-z0-9_-]{1,80}$/.test(input))return input;try{const url=new URL(input);if(platform==='douyin'&&url.searchParams.get('live_web_rid'))return url.searchParams.get('live_web_rid');const room=url.pathname.split('/').filter(Boolean).at(-1)||'';if(/^[A-Za-z0-9_-]{1,80}$/.test(room))return room;}catch{}throw Error('请使用有效房间号或直播间链接');}
+function sharedRooms(){
+ const rooms=SOURCES.map((source,i)=>({platform:$('platform'+source).value,room:shareRoomId($('platform'+source).value,$('room'+source).value.trim()),offset:preferredDelays[source],enabled:$('enabled'+source).checked}));
+ if(shareOffsets){const proposed=rooms.map((r,i)=>({...r,offset:Number(shareOffsets[i])}));try{const actual=FusionShare.actuals(proposed);if(SOURCES.every((s,i)=>!proposed[i].enabled||Math.abs(actual[i]-preferredDelays[s])<.01))return FusionShare.validate(proposed);}catch{}}
+ return FusionShare.validate(rooms);
+}
+async function applySharedConfig(rooms,start=false){
+ rooms=FusionShare.validate(rooms);for(let i=0;i<3;i++)if(![...$('platform'+SOURCES[i]).options].some(o=>o.value===rooms[i].platform))throw Error('当前版本不支持分享码中的平台：'+rooms[i].platform+'，配置未改变');const actual=FusionShare.actuals(rooms);if(actual.some(v=>v>20))throw Error('这份配置需要超过20秒实际延迟，当前移动端上限为20秒，请在PC调整后重新分享');
+ window.cleanView?.exit({restoreMedia:false});if(start)stop();shareOffsets=rooms.map(r=>r.offset);
+ SOURCES.forEach((s,i)=>{const r=rooms[i];$('platform'+s).value=r.platform;$('room'+s).value=r.room;$('enabled'+s).checked=r.enabled;preferredDelays[s]=actual[i];$('delay'+s).value=actual[i];$('delay'+s+'Value').textContent=actual[i].toFixed(1)+'s';qualityChoices[s]=0;previews[s].data=null;previews[s].last='';void preview(s);});
+ save();refreshViewLayout();notice('已应用三路分享配置，音量保留。');if(start)await connect();
+}
+window.fusionShareUI=FusionShareUI.mount({read:sharedRooms,apply:applySharedConfig,rpc,notice,collector:shareCollector,
+ context:source=>channels[source]?messageContext(source):null,foreground:()=>foreground,
+ busy:()=>sendingMessage,setBusy:value=>{sendingMessage=value;if(typeof updateCapabilities==='function')updateCapabilities();},
+ canSend:context=>foreground&&context.generation===generation&&channels[context.source]?.epoch===context.epoch&&(!['','bilibili'].includes(context.platform)||account.loggedIn),uid:()=>account.uid});
+
 })();
 

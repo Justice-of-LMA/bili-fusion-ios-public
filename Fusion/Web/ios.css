@@ -32,3 +32,4 @@ body.full #settings,body.full #composer{visibility:visible}
 body.web-layout #stage,body.web-layout #webLayoutShell{background:transparent!important}
 body.web-layout #normalHistory{visibility:visible!important}
 
+#videoC{opacity:0!important;pointer-events:none}#videoC.web-player{opacity:1!important}

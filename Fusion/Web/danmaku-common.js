@@ -16,7 +16,7 @@ class Group{
  get count(){return this.members.reduce((n,x)=>n+x.count,0);}
 }
 function badge(el,group){el.textContent=group.count>1?'×'+(group.count>999?'999+':group.count):'';el.hidden=false;el.style.visibility=group.count<2?'hidden':'visible';}
-function menu({parent=document.body,blockUser,blockText,send,active=()=>true}){
+function menu({parent=document.body,blockUser,blockText,send,copy,share,shareProgress,active=()=>true}){
  const d=parent.ownerDocument||document,style=d.createElement('style'),box=d.createElement('div');
  style.textContent='.fusion-message-menu{position:fixed;box-sizing:border-box;width:min(320px,calc(100vw - 16px));max-height:min(420px,70vh);overflow:auto;padding:10px;background:#132235f5;color:#eef6ff;border:1px solid #55738c;border-radius:12px;box-shadow:0 6px 28px #0008;z-index:2147483647;font:14px system-ui;pointer-events:auto}.fusion-message-menu[hidden]{display:none!important}.fusion-message-menu button,.fusion-message-menu select{box-sizing:border-box;font:inherit;color:inherit;background:#29445b;border:1px solid #597588;border-radius:7px;padding:8px;margin:3px 0;width:100%;cursor:pointer}.fusion-message-menu button:disabled{opacity:.5;cursor:default}.fusion-message-menu .msg-head{display:flex;gap:8px;align-items:center}.fusion-message-menu .msg-head span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fusion-message-menu .msg-head button{width:32px}.fusion-message-menu .msg-body{white-space:pre-wrap;overflow-wrap:anywhere;max-height:4.5em;overflow:auto;color:#aecdde;margin:6px 0}.fusion-message-menu .msg-status{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}.fusion-merge-count{display:inline-block;box-sizing:border-box;min-width:3.4em;max-width:3.4em;font-size:.72em;padding-left:.25em;font-variant-numeric:tabular-nums;vertical-align:middle;pointer-events:none}';
  box.className='fusion-message-menu';box.hidden=true;box.setAttribute('role','menu');box.setAttribute('aria-label','弹幕操作');parent.append(style,box);
@@ -39,6 +39,8 @@ function menu({parent=document.body,blockUser,blockText,send,active=()=>true}){
     finally{busy=false;if(opened&&ticket===serial)buttons.forEach(b=>{if(b!==x)b.disabled=b.dataset.unavailable==='true';});}
    };button.dataset.unavailable=String(!enabled);box.append(button);return button;
   };
+  action('复制这条弹幕',async()=>{if(copy)await copy(group.text);else await navigator.clipboard.writeText(group.text);return '已复制原文';});
+  const useShare=share?.(members[0].message,members[0].context);if(useShare)action('使用分享码配置',useShare);else{const progress=shareProgress?.(members[0].message,members[0].context);if(progress)status.textContent=progress;}
   const users=[];for(const item of members){const u=FusionBlocking.identity(item.message,item.context.platform);if((u.uid||u.name)&&!users.some(x=>FusionBlocking.key(x.u)===FusionBlocking.key(u)))users.push({u,item});}
   let selected=0;
   if(users.length>1){const select=d.createElement('select');select.setAttribute('aria-label','选择要屏蔽的发送者');users.forEach(({u},i)=>{const o=d.createElement('option');o.value=String(i);o.textContent=FusionBlocking.names[u.platform]+' · '+(u.name||u.uid);select.append(o);});select.onchange=()=>{selected=Number(select.value);};box.append(select);}

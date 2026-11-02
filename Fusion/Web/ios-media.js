@@ -40,7 +40,7 @@ window.iosLayout=()=>{
   if(queued)return;queued=true;
   requestAnimationFrame(()=>{
     queued=false;const result={};
-    for(const s of ['A','B']){const rect=document.getElementById('view'+s).getBoundingClientRect();result[s]={x:rect.x,y:rect.y,width:rect.width,height:rect.height,visible:!active.get(s)?.webMode&&(s==='A'||document.body.classList.contains('dual'))};}
+    for(const s of ['A','B','C']){const rect=document.getElementById('view'+s).getBoundingClientRect();result[s]={x:rect.x,y:rect.y,width:rect.width,height:rect.height,visible:!active.get(s)?.webMode&&rect.width>0&&rect.height>0&&getComputedStyle(document.getElementById('view'+s)).display!=='none'};}
     const text=JSON.stringify(result);if(text!==last){last=text;window.Native?.call('0','layout',text);}
   });
 };

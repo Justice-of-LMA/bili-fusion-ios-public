@@ -11,7 +11,7 @@
  }
  function reset(source){const s=states.get(source);if(!s)return;s.scale=1;s.x=s.y=0;s.gesture=null;apply(s);}
  function resetAll(){for(const source of states.keys())reset(source);}
- function mount(){for(const source of ['A','B']){
+ function mount(){for(const source of ['A','B','C']){
   const view=document.getElementById('view'+source),video=document.getElementById('video'+source);if(!view||!video||states.has(source))continue;
   const button=document.createElement('button');button.type='button';button.className='video-zoom-reset';button.dataset.source=source;button.setAttribute('aria-label','恢复 '+source+' 画面');button.hidden=true;
   button.style.cssText='position:absolute;right:8px;bottom:8px;z-index:35;padding:6px 10px;font:12px system-ui;color:white;background:#142438dd;border:1px solid #82b8cc;border-radius:8px;pointer-events:auto;touch-action:manipulation';

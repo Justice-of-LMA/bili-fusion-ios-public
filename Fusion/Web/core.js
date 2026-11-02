@@ -172,11 +172,11 @@ function laneLayout(height,size,area,limit){
 function laneCount(height,size,area,limit){return laneLayout(height,size,area,limit).count;}
 // One explicit action, at most two distinct rooms. Never retry an uncertain result.
 async function sendBatch(targets,send,{active=()=>true,wait=ms=>new Promise(r=>setTimeout(r,ms)),progress=()=>{}}={}){
-  if(!Array.isArray(targets)||targets.length<1||targets.length>2)throw Error('仅支持 A / B 两个发送目标');
+  if(!Array.isArray(targets)||targets.length<1||targets.length>3)throw Error('仅支持 A / B / C 三个发送目标');
   const rooms=new Map();
   for(const t of targets){
     const platform=t.platform||'bilibili',room=String(t.room);
-    if(!/^[AB]$/.test(t.source)||!['bilibili','huya','douyu','douyin'].includes(platform)||
+    if(!/^[ABC]$/.test(t.source)||!['bilibili','huya','douyu','douyin'].includes(platform)||
       !(platform==='huya'?/^[A-Za-z0-9_-]{1,40}$/.test(room):/^[1-9][0-9]{0,15}$/.test(room)&&Number.isSafeInteger(Number(room))))throw Error('发送目标无效');
     const key=platform+':'+room;if(rooms.has(key))rooms.get(key).sources.push(t.source);else rooms.set(key,{room,platform,sources:[t.source]});
   }
