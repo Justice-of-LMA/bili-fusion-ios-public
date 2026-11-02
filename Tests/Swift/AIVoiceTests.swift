@@ -36,12 +36,12 @@ final class AIVoiceTests: XCTestCase {
                 var planes=[l.baseAddress,r.baseAddress]
                 return fusion_ai_pcm(&planes,count,Int32(rate),2,1)
             }}
-            XCTAssertEqual(status,1,VoiceSegment.aiDetail);XCTAssertEqual(left.count,count);XCTAssertTrue(left.allSatisfy{$0.isFinite&&abs($0)<=0.901})
+            XCTAssertEqual(status,1,VoiceSegment.aiDetail);XCTAssertEqual(left.count,count);XCTAssertTrue(left.allSatisfy{$0.isFinite&&abs($0)<=0.281})
             XCTAssertGreaterThan(zip(original,left).map{abs($0-$1)}.reduce(0,+),0.001,"Test actual model output, not an unchanged placeholder")
             let off=originalCopy.withUnsafeMutableBufferPointer { p -> Int32 in var planes=[p.baseAddress];return fusion_ai_pcm(&planes,count,Int32(rate),1,0) }
             XCTAssertEqual(off,0);XCTAssertEqual(originalCopy,original)
         }
-        XCTAssertTrue(VoiceSegment.aiDetail.contains("GTCRN + peak guard local CPU"))
+        XCTAssertTrue(VoiceSegment.aiDetail.contains("GTCRN + loudness guard local CPU"))
     }
     func testIndependentSegmentsHaveRepeatableWarmupAndBoundedFailure() throws {
         try enabled()
@@ -87,7 +87,7 @@ final class AIVoiceTests: XCTestCase {
             }
         }
         XCTAssertEqual(result,1,VoiceSegment.aiDetail)
-        for channel in [left,right] { XCTAssertTrue(channel.allSatisfy { sample in sample.isFinite && abs(sample)<=Float(0.901) }) }
+        for channel in [left,right] { XCTAssertTrue(channel.allSatisfy { sample in sample.isFinite && abs(sample)<=Float(0.281) }) }
         let original=left
         let off:Int32=left.withUnsafeMutableBufferPointer { p -> Int32 in
             var planes:[UnsafeMutablePointer<Float>?]=[p.baseAddress]
