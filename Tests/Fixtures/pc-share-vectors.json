@@ -1,0 +1,190 @@
+{
+  "samples": [
+    {
+      "rooms": [
+        {
+          "Platform": "bilibili",
+          "Room": "6",
+          "Offset": 0,
+          "Enabled": true
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "616",
+          "Offset": -3,
+          "Enabled": true
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "23197314",
+          "Offset": 1,
+          "Enabled": true
+        }
+      ],
+      "oldCharacters": 80,
+      "newCharacters": 58,
+      "oldEmojis": 19,
+      "newEmojis": 15,
+      "savedPercent": 27.5,
+      "roundtrip": true,
+      "packetHex": "A08D427169EC6B3998",
+      "oldCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u5ACC\u5F03][\u5927\u7B11][\u62B1\u62F3][\u9178][\u53EF\u601C][\u54CD\u6307][dog][\u74DC\u5B50][\u51FA\u7A8D][\u7ED9\u529B][\u5ACC\u5F03][\u54C8\u6B20][\u6342\u8138][\u8D5E][\u62B1\u62B1][\u5927\u7B11][\u5978\u7B11][\u9F87\u7259][\u624B\u673A]",
+      "newCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u51B7][\u54C7][\u70ED][\u8036][\u5FAE\u7B11][\u75BC][\u9F87\u7259][\u5BB3\u7F9E][\u5413][\u5ACC\u5F03][\u751F\u6C14][OK][\u7B11][\u9632\u62A4][\u518D\u89C1]"
+    },
+    {
+      "rooms": [
+        {
+          "Platform": "bilibili",
+          "Room": "6",
+          "Offset": 0,
+          "Enabled": true
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "616",
+          "Offset": 0,
+          "Enabled": true
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "23197314",
+          "Offset": 0,
+          "Enabled": true
+        }
+      ],
+      "oldCharacters": 81,
+      "newCharacters": 54,
+      "oldEmojis": 19,
+      "newEmojis": 13,
+      "savedPercent": 33.3,
+      "roundtrip": true,
+      "packetHex": "A08D427169EC6B00",
+      "oldCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u5ACC\u5F03][\u5927\u7B11][\u62B1\u62F3][\u9178][\u53EF\u601C][\u54CD\u6307][dog][\u74DC\u5B50][\u51FA\u7A8D][\u5446][\u5403\u74DC][\u864E\u5E74][\u8DEA\u4E86][\u5999][\u6342\u81382][\u62B1\u62F3][dog][\u4E00\u822C][\u58A8\u955C]",
+      "newCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u56E7][\u8036][\u751F\u6C14][\u4E00\u822C][\u5BB3\u7F9E][\u4E09\u661F\u5806][\u6293\u72C2][\u644A\u624B][\u75BC][\u5999][\u6ED1\u7A3D][\u9B3C\u9B42][\u864E\u5E74]"
+    },
+    {
+      "rooms": [
+        {
+          "Platform": "bilibili",
+          "Room": "6",
+          "Offset": 0,
+          "Enabled": true
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "7777",
+          "Offset": -3.2,
+          "Enabled": true
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "",
+          "Offset": 0,
+          "Enabled": false
+        }
+      ],
+      "oldCharacters": 56,
+      "newCharacters": 50,
+      "oldEmojis": 14,
+      "newEmojis": 12,
+      "savedPercent": 10.7,
+      "roundtrip": true,
+      "packetHex": "B611A1CC7897F0",
+      "oldCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u5FAE\u7B11][\u9178][\u60CA\u8BB6][\u6CFC\u6C34][\u82B1][\u82B1][\u75BC][\u62B1\u62B1][\u85CF\u72D0][\u864E\u5E74][\u7B11\u54ED][\u725B][\u51FA\u7A8D][\u95EE\u53F7]",
+      "newCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u65E0\u8BED][\u751F\u75C5][\u5413][\u751F\u75C5][OH][\u5618][\u5978\u7B11][\u5403\u74DC][\u864E\u5E74][\u9178][\u5BB3\u7F9E][\u6487\u5634]"
+    },
+    {
+      "rooms": [
+        {
+          "Platform": "bilibili",
+          "Room": "7734200",
+          "Offset": 0,
+          "Enabled": true
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "545068",
+          "Offset": -3.1,
+          "Enabled": true
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "23197314",
+          "Offset": 1.7,
+          "Enabled": true
+        }
+      ],
+      "oldCharacters": 98,
+      "newCharacters": 87,
+      "oldEmojis": 24,
+      "newEmojis": 22,
+      "savedPercent": 11.2,
+      "roundtrip": true,
+      "packetHex": "A0F1EC160F653A21169EC6B4CBEC40",
+      "oldCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u95EE\u53F7][\u9B3C\u9B42][\u767D\u773C][\u4E00\u822C][\u91D1\u94B1\u8C79][\u62B1\u62F3][\u60CA\u559C][\u5BB3\u7F9E][\u95EE\u53F7][\u96BE\u8FC7][\u5ACC\u5F03][\u5446][OK][\u85CF\u72D0][\u5999][\u5403\u74DC][\u60CA\u8BB6][\u82B1][\u9634\u9669][\u74DC\u5B50][\u62B1\u62F3][\u7ED9\u529B][\u5999][\u4E00\u822C]",
+      "newCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u7231][\u4E00\u822C][\u62B1\u62F3][\u5927\u7B11][\u559D\u5F69][\u60CA\u8BB6][\u60CA\u8BB6][\u5ACC\u5F03][\u56E7][\u5403\u74DC][\u51B7][\u53EF\u601C][\u559D\u5F69][\u95EE\u53F7][\u7231][\u5446][\u6342\u8138][\u6342\u8138][\u9F13\u638C][\u50B2\u5A07][\u7B11][\u6487\u5634]"
+    },
+    {
+      "rooms": [
+        {
+          "Platform": "bilibili",
+          "Room": "6",
+          "Offset": 0,
+          "Enabled": true
+        },
+        {
+          "Platform": "huya",
+          "Room": "60066",
+          "Offset": -2,
+          "Enabled": true
+        },
+        {
+          "Platform": "douyu",
+          "Room": "93589",
+          "Offset": 1,
+          "Enabled": true
+        }
+      ],
+      "oldCharacters": 77,
+      "newCharacters": 63,
+      "oldEmojis": 19,
+      "newEmojis": 16,
+      "savedPercent": 18.2,
+      "roundtrip": true,
+      "packetHex": "A6441B16A1D57B167230",
+      "oldCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u5ACC\u5F03][\u60CA\u559C][\u59D4\u5C48][\u51B7][\u7B11][\u8D5E][\u8D5E][\u624B\u673A][\u5077\u7B11][\u5077\u7B11][\u751F\u6C14][\u50B2\u5A07][\u5927\u54ED][\u62B1\u62B1][\u5BB3\u7F9E][\u54CD\u6307][\u5927\u54ED][\u4E0D\u884C][\u95EE\u53F7]",
+      "newCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u9F87\u7259][\u9F3B\u5B50][\u8036][\u5077\u7B11][\u75BC][\u9632\u62A4][\u5618][\u6BD4\u5FC3][\u50B2\u5A07][\u95EE\u53F7][\u6342\u8138][\u6CE2\u5409][\u5446][\u7B11][\u8036][\u4EB2\u4EB2]"
+    },
+    {
+      "rooms": [
+        {
+          "Platform": "bilibili",
+          "Room": "6",
+          "Offset": 0,
+          "Enabled": true
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "",
+          "Offset": 0,
+          "Enabled": false
+        },
+        {
+          "Platform": "bilibili",
+          "Room": "",
+          "Offset": 0,
+          "Enabled": false
+        }
+      ],
+      "oldCharacters": 50,
+      "newCharacters": 27,
+      "oldEmojis": 12,
+      "newEmojis": 7,
+      "savedPercent": 46,
+      "roundtrip": true,
+      "packetHex": "B20300",
+      "oldCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u54C7][\u864E\u5E74][\u8D5E][\u60CA\u559C][\u751F\u6C14][\u9B3C\u9B42][\u54C7][\u5ACC\u5F03][\u6C64\u5706][\u60CA\u559C][\u9634\u9669][\u4FDD\u4F51]",
+      "newCode": "\u5EF6\u8FDF\u5206\u4EAB-[\u7B11][\u56E7][\u7231][\u82B1][\u82B1][\u8C03\u76AE][\u8036]"
+    }
+  ]
+}
