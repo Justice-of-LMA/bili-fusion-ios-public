@@ -297,10 +297,10 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(Set(controller.lifecycleState().obj("players").keys),Set(["A","B","C"]))
     }
     @MainActor func testSignedTimingAndVideoCategoryInRealWKWebView() async throws {
-        let web=try appWeb();try await waitFor(web,"window.__fusionUIReady===true && !!window.FusionOffsets")
+        let web=try appWeb();try await waitFor(web,"window.__fusionUIReady===true && !!window.FusionOffsets && document.querySelector('.logo img')?.naturalWidth===256")
         let result=try await web.evaluateJavaScript("""
         (()=>{const r=FusionOffsets.normalize({A:-3.2,B:-1.2,C:0},{A:true,B:true,C:true});
-        return r.A===0&&r.B===2&&r.C===3.2&&document.getElementById('delayC').min==='-60'&&
+        return document.querySelector('.logo').getBoundingClientRect().width<=52&&document.querySelector('.logo').getBoundingClientRect().height<=52&&r.A===0&&r.B===2&&r.C===3.2&&document.getElementById('delayC').min==='-60'&&
         document.querySelectorAll('#offsetC').length===1&&document.getElementById('offsetC').parentNode.querySelectorAll('button').length===4&&
         ['audioOnlyA','audioOnlyB','audioOnlyC','audioBC'].every(id=>document.getElementById('settings-panel-video').contains(document.getElementById(id)))})()
         """) as? Bool

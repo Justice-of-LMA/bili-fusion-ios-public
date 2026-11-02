@@ -82,4 +82,4 @@ body.video-pip #viewA{inset:0!important;width:100%!important;height:100%!importa
 /* Native video is under a transparent WebView: hide the page behind the fixed stage. */
 body.full>header,body.full main>.setup,body.full main>.status,body.full main>#normalHistory,body.full main>details,body.full main>footer{visibility:hidden!important;pointer-events:none!important}
 
-.logo{background:transparent!important;overflow:hidden}.logo img{width:100%;height:100%;display:block;object-fit:contain}
+.logo{width:48px;height:48px;flex:0 0 48px;padding:0;background:transparent!important;overflow:hidden}.logo img{width:100%;height:100%;display:block;object-fit:contain}
