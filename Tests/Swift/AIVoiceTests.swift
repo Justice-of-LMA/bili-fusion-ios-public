@@ -88,6 +88,8 @@ final class AIVoiceTests: XCTestCase {
         }
         XCTAssertEqual(result,1,VoiceSegment.aiDetail)
         for channel in [left,right] { XCTAssertTrue(channel.allSatisfy { sample in sample.isFinite && abs(sample)<=Float(0.281) }) }
+        // Above the enabled guard's .28 ceiling; strength zero must not limit it.
+        left=(0..<count).map { $0 % 2 == 0 ? Float(0.95):Float(-0.95) }
         let original=left
         let off:Int32=left.withUnsafeMutableBufferPointer { p -> Int32 in
             var planes:[UnsafeMutablePointer<Float>?]=[p.baseAddress]
