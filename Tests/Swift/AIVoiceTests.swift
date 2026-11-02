@@ -71,13 +71,28 @@ final class AIVoiceTests: XCTestCase {
     }
     func testLoudResidualIsFinitePeakBoundedAndZeroStrengthUnchanged() throws {
         try enabled()
-        var left=(0..<16000).map { i in Float(1.1*sin(Double(i)*0.23)+0.3*sin(Double(i)*2.3)) }
-        var right=left.map{$0*0.8};let count=left.count
-        let result=left.withUnsafeMutableBufferPointer { l in right.withUnsafeMutableBufferPointer { r -> Int32 in var planes=[l.baseAddress,r.baseAddress];return fusion_ai_pcm(&planes,count,16000,2,1) }}
+        var left=[Float]();left.reserveCapacity(16000)
+        for i in 0..<16000 {
+            let t=Double(i)
+            let bass=1.1*sin(t*0.23)
+            let high=0.3*sin(t*2.3)
+            left.append(Float(bass+high))
+        }
+        var right:[Float]=left.map{$0*Float(0.8)}
+        let count=left.count
+        let result:Int32=left.withUnsafeMutableBufferPointer { l in
+            right.withUnsafeMutableBufferPointer { r -> Int32 in
+                var planes:[UnsafeMutablePointer<Float>?]=[l.baseAddress,r.baseAddress]
+                return fusion_ai_pcm(&planes,count,16000,2,1)
+            }
+        }
         XCTAssertEqual(result,1,VoiceSegment.aiDetail)
-        XCTAssertTrue((left+right).allSatisfy{$0.isFinite && abs($0)<=0.901})
+        for channel in [left,right] { XCTAssertTrue(channel.allSatisfy { sample in sample.isFinite && abs(sample)<=Float(0.901) }) }
         let original=left
-        let off=left.withUnsafeMutableBufferPointer { p -> Int32 in var planes=[p.baseAddress];return fusion_ai_pcm(&planes,count,16000,1,0) }
+        let off:Int32=left.withUnsafeMutableBufferPointer { p -> Int32 in
+            var planes:[UnsafeMutablePointer<Float>?]=[p.baseAddress]
+            return fusion_ai_pcm(&planes,count,16000,1,0)
+        }
         XCTAssertEqual(off,0);XCTAssertEqual(left,original)
     }
 
