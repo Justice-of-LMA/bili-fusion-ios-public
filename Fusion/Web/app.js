@@ -46,6 +46,7 @@ function save(){
   const config={roomA:$('roomA').value,roomB:$('roomB').value};
   for(const id of ids)config[id]=$(id).type==='checkbox'?$(id).checked:$(id).value;
   config.qualityA=qualityChoices.A;config.qualityB=qualityChoices.B;config.delayA=preferredDelays.A;config.delayB=preferredDelays.B;config.dual=document.body.classList.contains('dual');
+  window.cleanView?.preserve(config);
   try{localStorage.setItem('fusion-mobile-v1',JSON.stringify(config));}catch{}
 }
 try{
@@ -154,6 +155,7 @@ window.handleBack=()=>{
   if($('following').open){closeFollowing();return true;}
   if(!$('legal').hidden){$('legal').hidden=true;return true;}
   if(!$('settings').hidden){$('settings').hidden=true;wake();return true;}
+  if(window.cleanView?.active){window.cleanView.exit();return true;}
   return false;
 };
 function clearBullets(){
@@ -186,6 +188,7 @@ function addHistory(event,source){
   $('history').scrollTop=$('history').scrollHeight;
 }
 function addBullet(event,source,now){
+  if(window.cleanView?.active)return;
   if(blocked(event,source))return;
   if(!$('chat'+source).checked)return;
   const context=messageContext(source);
@@ -349,6 +352,7 @@ async function messages(c){
   try{await rpc('startChat',{source:c.source,epoch:c.epoch,room:String(c.room.room),title:c.room.title,platform:c.room.platform||'bilibili'});}catch(e){if(active()){c.chatState=e.message;c.renderStatus();}}
 }
 function stop(){
+  window.cleanView?.exit({restoreMedia:false});
   void rpc('pipStop').catch(()=>{});pipEnabled=false;
   generation++;
   for(const c of Object.values(channels))c.close();channels={};
@@ -384,6 +388,7 @@ function createCard(m){
   el.append(head,body,time,progress);return {el,time,progress};
 }
 function renderCards(){
+  if(window.cleanView?.active){cardLayer.replaceChildren();scNodes.clear();return;}
   if(manualPaused){cardLayer.replaceChildren();scNodes.clear();return;}
   cardLayer.hidden=manualPaused;
   const by={A:[],B:[]};
@@ -592,4 +597,19 @@ document.querySelector('a[href="licenses.html"]').onclick=async e=>{
 };
 $('legalClose').onclick=()=>{$('legal').hidden=true;};
 window.__fusionUIReady=true;
+
+window.cleanView=window.FusionWebLayout?.mount({
+ ready:()=>!!channels.A,
+ notice,
+ clear:()=>{clearBullets();cardLayer.replaceChildren();scNodes.clear();},
+ rotate:()=>{const value=innerWidth>innerHeight?'portrait':'landscape';$('screenOrientation').value=value;save();void rpc('orientation',{value}).catch(e=>notice(e.message,true));},
+ audio:(enter,snapshot,restoreMedia=true)=>{
+  const on=enter?true:snapshot.audioOnlyB;$('audioOnlyB').checked=on;setDual(enter?false:snapshot.dual);
+  const c=channels.B;if(c&&restoreMedia){
+   if(window.IOSMedia&&!c.media.webMode)c.media.audioOnly=on;
+   else if((c.media.webMode?!!c.media.audioOnly:c.media.tagName==='AUDIO')!==on){if(c.media.webMode)c.media._audioOnly=on;c.open();}
+  }
+ }
+});
 })();
+

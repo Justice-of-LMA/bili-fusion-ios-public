@@ -1,9 +1,9 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.hdslb.com https://*.biliimg.com https://*.msstatic.com https://*.douyucdn.cn https://*.douyucdn2.cn; media-src 'self' blob: http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:*; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
-<title>二路随行</title><link rel="stylesheet" href="app.css"><link rel="stylesheet" href="ios.css">
+<title>二路随行</title><link rel="stylesheet" href="app.css"><link rel="stylesheet" href="web-layout.css"><link rel="stylesheet" href="ios.css">
 </head><body>
-<header><div class="logo">融</div><div><h1>二路随行 <small>iOS 0.2.5</small></h1><p>画面、解说、弹幕，同一处观看</p></div><button id="login">账号 / 登录</button></header>
+<header><div class="logo">融</div><div><h1>二路随行 <small>iOS 0.2.6</small></h1><p>画面、解说、弹幕，同一处观看</p></div><button id="login">账号 / 登录</button></header>
 <main>
 <section class="setup card"><div class="rooms">
 <div class="room-slot"><label for="roomA"><span class="badge a">A</span> 主直播间</label><select id="platformA" aria-label="A 平台"><option value="bilibili">B站</option><option value="huya">虎牙</option><option value="douyu">斗鱼</option></select><input id="roomA" autocomplete="off" placeholder="直播间号 / 所选平台链接" inputmode="url" value="6"><button id="followA" class="follow-trigger">从关注中选择</button><div id="previewA" class="room-preview" aria-live="polite"><p>输入后显示房间信息</p></div></div>
@@ -63,7 +63,7 @@
 <form id="composer" class="stage-controls"><select id="target" aria-label="发送目标"><option value="B">发送 B</option><option value="A">发送 A</option></select><input id="message" autocomplete="off" maxlength="80" placeholder="发个弹幕吧（最多 40 字）"><button id="send" type="submit">发送</button><button id="sendBoth" type="button" title="分别向 A、B 提交，中间间隔 5 秒" aria-label="双发到 A 和 B 直播间">双发</button></form>
 </section>
 <section class="card status"><div><span class="badge a">A</span><strong id="titleA">主直播间</strong><p id="statusA">尚未连接</p></div><div><span class="badge b">B</span><strong id="titleB">二路直播间</strong><p id="statusB">尚未连接</p></div></section>
-<section class="card"><div class="history-title"><h2>消息记录</h2><button id="historyClear">清空显示</button></div><div id="history"><p class="hint">A / B 消息会随播放进度出现在这里。</p></div></section>
+<section id="normalHistory" class="card"><div class="history-title"><h2>消息记录</h2><button id="historyClear">清空显示</button></div><div id="history"><p class="hint">A / B 消息会随播放进度出现在这里。</p></div></section>
 <details class="card help"><summary>使用说明与隐私</summary><p>① 在官方页面登录 → ② 填入 A / B → ③ 开始融合 → ④ 需要时调整音量和延迟。</p><p>消息发送结果“已提交”仅表示接口接受，不保证所有观众可见；超时不会自动重发。遇到 -352 / -412，请在官方房间页完成验证，不会绕过限制。</p><p>登录 Cookie 仅存本机。直播、弹幕、SC 直接访问 B站及其 CDN，不经过开发者服务器；无云端音频处理、无录音、无悬浮权限、无广告分析。退出登录可在登录页清除本 App 的会话。</p><p>额外延迟默认 0；观看设置只保存在本机。首版切后台暂停，不提供后台保活。支持 iOS / iPadOS 16 及以上，使用系统原生播放器；仅播放该房间实际提供的 H.264 / HLS 线路。</p><p>本软件不是 B站官方应用；内容权利归相应权利人。<a href="licenses.html">开源许可与参考说明</a></p></details>
 <footer><span>开发者：B站 @夙潮夜汐</span><button id="donate">打赏</button></footer>
 </main>
@@ -78,4 +78,4 @@
 <p class="hint">使用本 App 的 B站登录状态。只在你打开、刷新或加载下一页时读取，不自动遍历关注列表。</p>
 <div class="actions"><button id="followingLogin">登录 B站</button><button id="followingRefresh">刷新</button></div>
 <p id="followingState" role="status"></p><div id="followingList"></div><button id="followingMore" hidden>加载下一页</button></dialog>
-<aside id="legal" hidden><button id="legalClose">关闭许可说明</button><pre id="legalText"></pre></aside><script src="core.js"></script><script src="vendor/mpegts.js"></script><script src="voice-reducer.js"></script><script src="ios-media.js"></script><script src="sc-layout.js"></script><script src="blocking.js"></script><script src="blocking-ui.js"></script><script src="danmaku-common.js"></script><script src="video-zoom.js"></script><script src="app.js"></script></body></html>
+<aside id="legal" hidden><button id="legalClose">关闭许可说明</button><pre id="legalText"></pre></aside><script src="core.js"></script><script src="vendor/mpegts.js"></script><script src="voice-reducer.js"></script><script src="ios-media.js"></script><script src="sc-layout.js"></script><script src="blocking.js"></script><script src="blocking-ui.js"></script><script src="danmaku-common.js"></script><script src="video-zoom.js"></script><script src="web-layout.js"></script><script src="app.js"></script></body></html>

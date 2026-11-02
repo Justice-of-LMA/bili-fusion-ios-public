@@ -29,3 +29,6 @@ body.full #settings,body.full #composer{visibility:visible}
 #cards.sc-pass-through .sc{cursor:default}
 .room-slot>select{grid-column:1;width:100%;margin:5px 0}
 #videoA.web-player,#videoB.web-player{opacity:1!important}
+body.web-layout #stage,body.web-layout #webLayoutShell{background:transparent!important}
+body.web-layout #normalHistory{visibility:visible!important}
+
