@@ -75,7 +75,7 @@ test('zero delay does not seek or pause; increased delay uses real buffer',()=>{
   assert.deepEqual(C.delayAction(20,0,0,[[10,25]]),{seek:null,hold:0});
   assert.deepEqual(C.delayAction(20,0,3,[[10,25]]),{seek:17,hold:0});
   const x=C.delayAction(20,0,10,[[18,25]]);assert.ok(Math.abs(x.hold-8.1)<.001);assert.ok(Math.abs(x.seek-18.1)<.001);
-  assert.ok(C.delayAction(20,0,100,[[18,25]]).hold<=20);
+  assert.ok(C.delayAction(20,0,100,[[18,25]]).hold<=60);
 });
 test('shared lanes reject a second room until tail clearance',()=>{
   const l=new C.Lanes(1,100);assert.equal(l.enter(100,600,0).lane,0);assert.equal(l.enter(50,600,.5),null);assert.equal(l.enter(50,600,1.4).lane,0);
@@ -97,7 +97,7 @@ test('twenty seconds keeps audio/video/chat/SC on the same user-selected clock',
   assert.deepEqual(C.delayAction(30,20,5,[[0,60]]),{seek:45,hold:0});
   const short=C.delayAction(5,0,20,[[0,5]]);
   assert.ok(short.hold>15&&short.hold<16);
-  assert.deepEqual(C.delayAction(50,0,999,[[0,60]]),{seek:30,hold:0});
+  const max=C.delayAction(70,0,999,[[0,90]]);assert.deepEqual(max,{seek:10,hold:0});
 });
 
 test('unbracketed platform metadata maps complete tags but never bare chat words',()=>{
