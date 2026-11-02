@@ -116,8 +116,13 @@ final class PlaybackLifecycleTests:XCTestCase {
         let manager=VideoPictureInPicture();guard manager.supported else{throw XCTSkip("System video PiP not supported on this simulator")}
         try AVAudioSession.sharedInstance().setCategory(.playback,mode:.moviePlayback,options:[.mixWithOthers]);try AVAudioSession.sharedInstance().setActive(true)
         let(p,path)=try await fixturePlayer(segments:24)
-        let delegate=try XCTUnwrap(UIApplication.shared.delegate as? AppDelegate),host=try XCTUnwrap(delegate.window?.rootViewController?.view)
-        defer{manager.stop();p.close();p.surface.removeFromSuperview();try? FileManager.default.removeItem(at:path)}
+        let delegate=try XCTUnwrap(UIApplication.shared.delegate as? AppDelegate),oldWindow=try XCTUnwrap(delegate.window),scene=try XCTUnwrap(oldWindow.windowScene)
+        // The preceding orientation test can leave the production root in a pending
+        // scene rotation. Give AVKit a stable visible layer in this same foreground
+        // scene; do not start PiP from a transformed/transitioning test host.
+        let window=UIWindow(windowScene:scene),root=UIViewController();window.rootViewController=root;window.makeKeyAndVisible()
+        let host=root.view!;host.layoutIfNeeded()
+        defer{manager.stop();p.close();p.surface.removeFromSuperview();window.isHidden=true;oldWindow.makeKeyAndVisible();try? FileManager.default.removeItem(at:path)}
         p.surface.frame=CGRect(x:20,y:20,width:320,height:180);p.surface.isHidden=false;host.addSubview(p.surface);p.surface.layoutIfNeeded()
         for _ in 0..<50{if p.surface.videoLayer.isReadyForDisplay{break};try await Task.sleep(nanoseconds:100_000_000)}
         XCTAssertTrue(p.surface.videoLayer.isReadyForDisplay);let item=p.player.currentItem

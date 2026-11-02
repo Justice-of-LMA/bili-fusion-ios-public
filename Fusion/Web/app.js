@@ -642,7 +642,7 @@ window.fusionShareUI=FusionShareUI.mount({read:sharedRooms,apply:applySharedConf
  busy:()=>sendingMessage,setBusy:value=>{sendingMessage=value;if(typeof updateCapabilities==='function')updateCapabilities();},
  canSend:context=>foreground&&context.generation===generation&&channels[context.source]?.epoch===context.epoch&&(!['','bilibili'].includes(context.platform)||account.loggedIn),uid:()=>account.uid,visibility:()=>sendVisibilityEpoch});
 
-window.tvController=FusionTV.mount({read:sharedRooms,rpc,restore:()=>{tvPreviewMuted=false;for(const c of Object.values(channels))c.media.volume=Number($('volume'+c.source).value)/100;},preview:on=>{tvPreviewMuted=true;
+window.tvController=FusionTV.mount({read:sharedRooms,rpc,notice,restore:()=>{tvPreviewMuted=false;for(const c of Object.values(channels))c.media.volume=Number($('volume'+c.source).value)/100;},preview:on=>{tvPreviewMuted=true;
  manualPaused=!on;for(const c of Object.values(channels)){c.media.volume=0;if(on)c.play();else c.media.pause();}if(!on)clearBullets();$('pause').textContent=manualPaused?'继续':'暂停';updatePlaybackService();
 }});
 

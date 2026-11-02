@@ -13,18 +13,18 @@ enum TvTransport {
  }
  static func request(_ a:JSON) async throws->JSON {
   let (host,port)=try address(a.str("endpoint")),action=a.str("action"),token=a.str("token")
-  guard ["pair","state","config","control","settings","disconnect"].contains(action),token.isEmpty||token.range(of:"^[A-Za-z0-9_-]{32,80}$",options:.regularExpression) != nil else{throw FusionError("电视操作或配对状态无效")}
+  guard ["pair","state","config","control","settings","login","disconnect"].contains(action),token.isEmpty||token.range(of:"^[A-Za-z0-9_-]{32,80}$",options:.regularExpression) != nil else{throw FusionError("电视操作或配对状态无效")}
   let data=try JSONSerialization.data(withJSONObject:a.obj("data"));guard data.count<=32768 else{throw FusionError("电视配置过大")}
   let header="POST /v1/\(action) HTTP/1.1\r\nHost: \(host):\(port)\r\nContent-Type: application/json\r\nAuthorization: Bearer \(token)\r\nContent-Length: \(data.count)\r\nConnection: close\r\n\r\n"
   var request=Data(header.utf8);request.append(data)
-  return try await withCheckedThrowingContinuation{waiter in TvExchange(host:host,port:port,request:request,waiter:waiter).start()}
+  return try await withCheckedThrowingContinuation{waiter in TvExchange(host:host,port:port,request:request,waiter:waiter,timeout:action == "login" ? 32:8).start()}
  }
 }
 private final class TvExchange {
  private let connection:NWConnection,queue=DispatchQueue(label:"fusion.tv-control"),request:Data
- private var waiter:CheckedContinuation<JSON,Error>?,timer:DispatchSourceTimer?,buffer=Data()
- init(host:String,port:UInt16,request:Data,waiter:CheckedContinuation<JSON,Error>){connection=NWConnection(host:NWEndpoint.Host(host),port:NWEndpoint.Port(rawValue:port)!,using:.tcp);self.request=request;self.waiter=waiter}
- func start(){let timer=DispatchSource.makeTimerSource(queue:queue);self.timer=timer;timer.schedule(deadline:.now()+8);timer.setEventHandler{self.finish(.failure(FusionError("电视连接超时，请确认同一 Wi-Fi，并允许本 App 访问本地网络")))};timer.resume();connection.stateUpdateHandler={state in switch state{case .ready:self.connection.send(content:self.request,completion:.contentProcessed{error in if let error{self.finish(.failure(error))}else{self.receive()}});case .failed(let error):self.finish(.failure(error));default:break}};connection.start(queue:queue)}
+ private let timeout:Double;private var waiter:CheckedContinuation<JSON,Error>?,timer:DispatchSourceTimer?,buffer=Data()
+ init(host:String,port:UInt16,request:Data,waiter:CheckedContinuation<JSON,Error>,timeout:Double){self.timeout=timeout;connection=NWConnection(host:NWEndpoint.Host(host),port:NWEndpoint.Port(rawValue:port)!,using:.tcp);self.request=request;self.waiter=waiter}
+ func start(){let timer=DispatchSource.makeTimerSource(queue:queue);self.timer=timer;timer.schedule(deadline:.now()+timeout);timer.setEventHandler{self.finish(.failure(FusionError("电视连接超时，请确认同一 Wi-Fi，并允许本 App 访问本地网络")))};timer.resume();connection.stateUpdateHandler={state in switch state{case .ready:self.connection.send(content:self.request,completion:.contentProcessed{error in if let error{self.finish(.failure(error))}else{self.receive()}});case .failed(let error):self.finish(.failure(error));default:break}};connection.start(queue:queue)}
  private func receive(){connection.receive(minimumIncompleteLength:1,maximumLength:8192){data,_,complete,error in
   if let data{self.buffer.append(data)};if self.buffer.count>73728{self.finish(.failure(FusionError("电视响应过大")));return}
   if let end=self.buffer.range(of:Data("\r\n\r\n".utf8)){
