@@ -388,7 +388,6 @@ function createCard(m){
   el.append(head,body,time,progress);return {el,time,progress};
 }
 function renderCards(){
-  if(window.cleanView?.active){cardLayer.replaceChildren();scNodes.clear();return;}
   if(manualPaused){cardLayer.replaceChildren();scNodes.clear();return;}
   cardLayer.hidden=manualPaused;
   const by={A:[],B:[]};
@@ -401,6 +400,7 @@ function renderCards(){
       if($('sc'+s).checked)by[s].push({...m,source:s,key:c.epoch+':'+m.id});
     }
   }
+  if(window.cleanView?.active){cardLayer.replaceChildren();scNodes.clear();return;}
   // Keep at least the newest card from either active room before filling remaining space.
   const selected=[by.A.at(-1),by.B.at(-1)].filter(Boolean),rest=[...by.A.slice(0,-1),...by.B.slice(0,-1)].sort((a,b)=>b.received-a.received);
   selected.push(...rest.slice(0,Math.max(0,3-selected.length)));selected.sort((a,b)=>b.received-a.received);

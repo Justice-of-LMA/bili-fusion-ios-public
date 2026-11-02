@@ -5,17 +5,22 @@ from pathlib import Path
 import plistlib
 import re
 import struct
+import subprocess
 import sys
 import zipfile
 
 project = Path(__file__).resolve().parents[1]
 ipa = Path(sys.argv[1]).resolve()
 ai = "--ai" in sys.argv[2:]
-settings = (project / "project.yml").read_text(encoding="utf-8")
+def source(relative):
+    return subprocess.check_output(["git", "-c", f"safe.directory={project.as_posix()}", "show", f"HEAD:{relative}"], cwd=project)
+settings = source("project.yml").decode("utf-8")
 version = re.search(r'MARKETING_VERSION: "([^"]+)"', settings)[1]
 build = re.search(r'CURRENT_PROJECT_VERSION: "([^"]+)"', settings)[1]
 if ai:
-    version, build = "0.3.2", "3"
+    ai_settings = source("scripts/make-ai-project.rb").decode("utf-8")
+    version = re.search(r'MARKETING_VERSION[^\n]*?([0-9]+\.[0-9]+\.[0-9]+)', ai_settings)[1]
+    build = re.search(r'CURRENT_PROJECT_VERSION[^\n]*?([0-9]+)', ai_settings)[1]
 with zipfile.ZipFile(ipa) as package:
     assert package.testzip() is None, "ZIP integrity failure"
     names = package.namelist()
@@ -48,12 +53,12 @@ with zipfile.ZipFile(ipa) as package:
         offset += size
     assert platforms == [2], "Not an iOS device executable (simulator is platform 7)"
     assert not any(".xctest/" in n or "/Fixtures/" in n for n in names), "Test assets leaked into IPA"
-    web_root = project / "Fusion" / "Web"
-    resources = sorted(p.relative_to(web_root).as_posix() for p in web_root.rglob("*") if p.is_file())
+    tracked = subprocess.check_output(["git", "-c", f"safe.directory={project.as_posix()}", "ls-tree", "-r", "--name-only", "HEAD", "Fusion/Web"], cwd=project).decode("utf-8")
+    resources = sorted(p.removeprefix("Fusion/Web/") for p in tracked.splitlines())
     packaged = sorted(n[len(prefix + "Web/"):] for n in names if n.startswith(prefix + "Web/") and not n.endswith("/"))
     assert resources == packaged, "Web resource list mismatch"
     for relative in resources:
-        assert package.read(prefix + "Web/" + relative) == (web_root / relative).read_bytes(), relative
+        assert package.read(prefix + "Web/" + relative) == source("Fusion/Web/" + relative), relative
 print(json.dumps({"version": version, "build": build, "edition": "AI" if ai else "normal", "architecture": "arm64", "platform": "iOS device",
                   "minimumOS": info["MinimumOSVersion"], "deviceFamilies": info["UIDeviceFamily"],
                   "webFilesVerified": len(resources), "size": ipa.stat().st_size,
