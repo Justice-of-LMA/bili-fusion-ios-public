@@ -244,7 +244,7 @@ async function changeQuality(source,force=false){
   $('quality'+source+'State').textContent='正在获取新清晰度，原直播继续播放…';
   const active=()=>channels[source]===c&&!c.closed&&c.qualityRevision===revision;
   try{
-    const room=await rpc('resolve',{room:String(c.room.room),platform:c.room.platform||'bilibili',quality:wanted,voice:source==='A'&&$('voiceA').checked});
+    const room=await rpc('resolve',{room:String(c.room.room),platform:c.room.platform||'bilibili',quality:wanted,audioOnly:$('audioOnly'+source).checked,voice:source==='A'&&$('voiceA').checked});
     if(!active())return;
     if(room.room!==c.room.room)throw Error('直播间发生变化，请重新连接');
     c.qualityBusy=false;c.room=room;c.index=0;c.epoch=generation+'-'+source+'-'+Date.now();c.suspended=!foreground;
@@ -374,7 +374,7 @@ async function connect(){
   stop();const gen=generation;$('connect').disabled=true;save();notice('正在读取所选直播间…');
   try{
     const activeSources=selectedSources();
-    const rooms=await Promise.all(activeSources.map(s=>rpc('resolve',{room:$('room'+s).value.trim(),platform:$('platform'+s).value,quality:qualityChoices[s],voice:s==='A'&&$('voiceA').checked}).catch(e=>{throw Error(s+' 房间：'+e.message);})));
+    const rooms=await Promise.all(activeSources.map(s=>rpc('resolve',{room:$('room'+s).value.trim(),platform:$('platform'+s).value,quality:qualityChoices[s],audioOnly:$('audioOnly'+s).checked,voice:s==='A'&&$('voiceA').checked}).catch(e=>{throw Error(s+' 房间：'+e.message);})));
     if(gen!==generation||!foreground)return;
     const distinct=new Set();for(const room of rooms){const key=(room.platform||'bilibili')+':'+room.room;if(distinct.has(key))throw Error('已选直播间存在重复，请选择不同房间');distinct.add(key);}
     for(let i=0;i<activeSources.length;i++){const source=activeSources[i],epoch=gen+'-'+source+'-'+Date.now(),c=new Channel(source,rooms[i],epoch);channels[source]=c;$('title'+source).textContent=rooms[i].title;c.open();}refreshViewLayout();
@@ -561,7 +561,7 @@ async function togglePiP(){
     const input=$('roomB').value.trim();if(!input)throw Error('请先填入二路房间 B');
     // Resolve the entered B explicitly. Editing the input must not keep the old room in PiP.
     notice('正在连接二路并准备消息画中画…');
-    const gen=generation,room=await rpc('resolve',{room:input,platform:$('platformB').value,quality:qualityChoices.B});
+    const gen=generation,room=await rpc('resolve',{room:input,platform:$('platformB').value,quality:qualityChoices.B,audioOnly:true});
     if(gen!==generation)throw Error('连接已改变，请重试');
     if(!channels.B||String(channels.B.room.room)!==String(room.room)||channels.B.suspended){
       stop();const c=new Channel('B',room,generation+'-B-'+Date.now());channels.B=c;

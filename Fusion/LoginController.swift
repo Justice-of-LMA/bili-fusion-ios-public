@@ -8,16 +8,28 @@ import WebKit
     var done: (([JSON]) -> Void)?
     init(room: Int64 = 0) { self.room = room; super.init(nibName: nil, bundle: nil) }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    static func browserUserAgent(version: OperatingSystemVersion, tablet: Bool) -> String {
+        let safariVersion = "\(version.majorVersion).\(version.minorVersion)"
+        let device = tablet ? "Macintosh; Intel Mac OS X 10_15_7" : "iPhone; CPU iPhone OS \(version.majorVersion)_\(version.minorVersion) like Mac OS X"
+        return "Mozilla/5.0 (\(device)) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(safariVersion) \(tablet ? "" : "Mobile/15E148 ")Safari/605.1.15"
+    }
+    private func loadEntry() {
+        let url = URL(string: room > 0 ? "https://live.bilibili.com/\(room)" : "https://passport.bilibili.com/login")!
+        web.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+    }
     override func viewDidLoad() {
         super.viewDidLoad(); view.backgroundColor = .systemBackground
         title = room > 0 ? "B站官方房间验证" : "登录 B站"
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: "完成", style: .done, target: self, action: #selector(finish))
         navigationItem.rightBarButtonItems = [UIBarButtonItem(title: "刷新", style: .plain, target: self, action: #selector(refresh)), UIBarButtonItem(title: "退出登录", style: .plain, target: self, action: #selector(logout))]
+        // Include a Safari version before the first request so the site can identify WKWebView.
+        web.customUserAgent = Self.browserUserAgent(version: ProcessInfo.processInfo.operatingSystemVersion,
+                                                   tablet: UIDevice.current.userInterfaceIdiom == .pad)
         web.navigationDelegate = self; web.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(web)
         NSLayoutConstraint.activate([web.leadingAnchor.constraint(equalTo: view.leadingAnchor),web.trailingAnchor.constraint(equalTo: view.trailingAnchor),web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),web.bottomAnchor.constraint(equalTo: view.bottomAnchor)])
-        web.load(URLRequest(url: URL(string: room > 0 ? "https://live.bilibili.com/\(room)" : "https://passport.bilibili.com/login")!))
+        loadEntry()
     }
-    @objc private func refresh() { web.reload() }
+    @objc private func refresh() { loadEntry() }
     @objc private func logout() {
         let alert = UIAlertController(title: "清除本 App 内的 B站登录会话？", message: "不会退出官方客户端。", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "取消", style: .cancel))

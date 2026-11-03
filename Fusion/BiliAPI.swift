@@ -4,16 +4,24 @@ import WebKit
 @MainActor final class BiliAPI {
     private var sending = false
     private var sentAt = Date.distantPast
-    private let cookieStore = WKWebsiteDataStore.default().httpCookieStore
+    typealias Fetch = @MainActor (URLRequest) async throws -> (Data, HTTPURLResponse)
+    private let cookieStore: WKHTTPCookieStore
+    private let fetch: Fetch
+    private var identityTask: Task<Void, Never>?
+    init(cookieStore: WKHTTPCookieStore = WKWebsiteDataStore.default().httpCookieStore,
+         fetch: @escaping Fetch = { try await HTTP.shared.fetch($0) }) {
+        self.cookieStore = cookieStore
+        self.fetch = fetch
+    }
     private func cookies() async -> [HTTPCookie] {
         await withCheckedContinuation { c in cookieStore.getAllCookies { c.resume(returning: $0) } }
     }
     private func value(_ key: String) async -> String {
-        await cookies().first { $0.name == key && Safety.inDomain($0.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")), "bilibili.com") }?.value ?? ""
+        await cookies().first { $0.name == key && Safety.inDomain($0.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")), "bilibili.com") && ($0.expiresDate == nil || $0.expiresDate! > Date()) }?.value ?? ""
     }
     func request(_ url: URL, body: [String: String]? = nil) async throws -> JSON {
         guard url.scheme == "https", ["api.live.bilibili.com", "api.bilibili.com"].contains(url.host ?? ""), url.user == nil, url.port == nil || url.port == 443 else { throw FusionError("不允许的接口") }
-        var req = URLRequest(url: url); req.setValue(Safety.ua, forHTTPHeaderField: "User-Agent")
+        var req = URLRequest(url: url); req.setValue(PlatformRoom.desktopUA, forHTTPHeaderField: "User-Agent")
         req.setValue("https://live.bilibili.com/", forHTTPHeaderField: "Referer"); req.setValue("https://live.bilibili.com", forHTTPHeaderField: "Origin")
         let valid = await cookies().filter { c in
             let domain = c.domain.trimmingCharacters(in: CharacterSet(charactersIn: "."))
@@ -24,7 +32,7 @@ import WebKit
             req.httpMethod = "POST"; req.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
             req.httpBody = Data(body.keys.sorted().map { Safety.encoded($0) + "=" + Safety.encoded(body[$0]!) }.joined(separator: "&").utf8)
         }
-        let (bytes, response) = try await HTTP.shared.fetch(req)
+        let (bytes, response) = try await fetch(req)
         guard response.statusCode == 200 else { throw FusionError("B站接口 HTTP \(response.statusCode)") }
         guard let result = try JSONSerialization.jsonObject(with: bytes) as? JSON else { throw FusionError("B站响应格式发生变化") }
         return result
@@ -60,12 +68,40 @@ import WebKit
         let items = rows.prefix(100).map(Self.previewRow).filter { $0.int64("room") > 0 && $0["live"] as? Bool == true && seen.insert($0.int64("room")).inserted }
         return ["items": items, "page": page, "hasMore": page < 50 && (d.int("total_page") > 0 ? page < d.int("total_page") : rows.count >= 20)]
     }
-    func resolve(_ input: String, quality: Int, preferTS:Bool=false) async throws -> JSON {
+    private func prepareIdentity() async {
+        if let task = identityTask { await task.value; return }
+        let task = Task { @MainActor in
+            let ready = await cookies().contains { cookie in
+                let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+                let matchesHost = cookie.domain.hasPrefix(".")
+                    ? Safety.inDomain("api.live.bilibili.com", domain) : domain == "api.live.bilibili.com"
+                return cookie.name == "buvid3" && cookie.value.matches("^[A-Za-z0-9_-]{10,100}$")
+                    && Safety.inDomain(domain, "bilibili.com") && matchesHost && cookie.path == "/"
+                    && (cookie.expiresDate == nil || cookie.expiresDate! > Date())
+            }
+            guard !ready, let response = try? await request(URL(string: "https://api.bilibili.com/x/frontend/finger/spi")!),
+                  let spi = try? Self.require(response) else { return }
+            for (name, field) in [("buvid3", "b_3"), ("buvid4", "b_4")] {
+                let identity = spi.str(field)
+                guard identity.matches("^[A-Za-z0-9_-]{10,100}$"),
+                      let cookie = HTTPCookie(properties: [.name: name, .value: identity, .domain: ".bilibili.com", .path: "/", .secure: "TRUE"]) else { continue }
+                await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                    cookieStore.setCookie(cookie) { c.resume() }
+                }
+            }
+        }
+        identityTask = task
+        await task.value
+        identityTask = nil
+    }
+    func resolve(_ input: String, quality: Int, preferTS:Bool=false, audioOnly:Bool=false) async throws -> JSON {
         guard (0...100000).contains(quality) else { throw FusionError("清晰度参数无效") }
-        let id = try Safety.room(input), info = try await data("/room/v1/Room/get_info?room_id=\(id)")
+        let id = try Safety.room(input)
+        await prepareIdentity()
+        let info = try await data("/room/v1/Room/get_info?room_id=\(id)")
         let room = info.int64("room_id")
         guard room > 0, info.int("live_status") == 1 else { throw FusionError("直播间不存在或当前未开播") }
-        let play = try await data("/xlive/web-room/v2/index/getRoomPlayInfo?room_id=\(room)&protocol=0,1&format=\(preferTS ? "1":"0,1,2")&codec=0&qn=\(quality == 0 ? 80 : quality)&platform=web&ptype=8")
+        let play = try await data("/xlive/web-room/v2/index/getRoomPlayInfo?room_id=\(room)&protocol=0,1&format=\(preferTS ? "1":"0,1,2")&codec=0&qn=\(quality == 0 ? (audioOnly ? 80 : 10000) : quality)&platform=web&ptype=8")
         var result = try Self.playback(play, requested: quality); result["room"] = room; result["title"] = info.str("title"); return result
     }
     static func playback(_ play: JSON, requested: Int) throws -> JSON {
@@ -78,10 +114,15 @@ import WebKit
         for stream in pu.arr("stream") { for format in stream.arr("format") where ["ts", "fmp4"].contains(format.str("format_name")) {
             for codec in format.arr("codec") where codec.str("codec_name") == "avc" {
                 let actual = codec.int("current_qn"); var usable = false
-                for u in codec.arr("url_info").prefix(2) {
-                    guard let url = URL(string: u.str("host") + codec.str("base_url") + u.str("extra")), Safety.media(url) else { continue }
+                var accepted = 0
+                for u in codec.arr("url_info").prefix(16) {
+                    guard var components = URLComponents(string: u.str("host") + codec.str("base_url") + u.str("extra")) else { continue }
+                    if components.scheme == "http" { components.scheme = "https" }
+                    guard let url = components.url, Safety.media(url) else { continue }
                     usable = true
                     sources.append(["type": "hls", "url": url.absoluteString, "quality": actual, "qualityLabel": names[actual] ?? "档位 \(actual)"])
+                    accepted += 1
+                    if accepted == 2 { break }
                 }
                 if usable {
                     if actual > 0 && actual <= 100000 { available.insert(actual) }
@@ -89,20 +130,17 @@ import WebKit
                 }
             }
         }}
-        if requested > 0 && sources.contains(where: { $0.int("quality") == requested }) { sources = sources.filter { $0.int("quality") == requested } }
         guard !sources.isEmpty else { throw FusionError("该房间暂未提供 iOS 可用的 HTTPS H.264 / HLS 线路") }
+        let actualQualities = sources.map { $0.int("quality") }
+        let selected = requested > 0
+            ? actualQualities.filter { $0 <= requested }.max() ?? actualQualities.min()!
+            : actualQualities.max()!
+        sources = sources.filter { $0.int("quality") == selected }
         let qualities = available.sorted(by: >).map { ["qn": $0, "label": names[$0] ?? "档位 \($0)"] as JSON }
         return ["sources": sources, "qualities": qualities, "requestedQuality": requested, "currentQuality": sources[0].int("quality")]
     }
     func config(_ room: Int64) async throws -> JSON {
-        if await value("buvid3").isEmpty {
-            if let response = try? await request(URL(string: "https://api.bilibili.com/x/frontend/finger/spi")!), let spi = try? Self.require(response) {
-                let buvid = spi.str("b_3")
-                if buvid.matches("^[A-Za-z0-9_-]{10,100}$"), let cookie = HTTPCookie(properties: [.name: "buvid3", .value: buvid, .domain: ".bilibili.com", .path: "/", .secure: "TRUE"]) {
-                    await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in cookieStore.setCookie(cookie) { c.resume() } }
-                }
-            }
-        }
+        await prepareIdentity()
         let nav = try await request(URL(string: "https://api.bilibili.com/x/web-interface/nav")!).obj("data"), keys = nav.obj("wbi_img")
         let query = try Safety.wbi(room: room, image: keys.str("img_url"), sub: keys.str("sub_url"), seconds: Int(Date().timeIntervalSince1970))
         var conf = try await data("/xlive/web-room/v1/index/getDanmuInfo?" + query)

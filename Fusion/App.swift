@@ -199,7 +199,7 @@ import WebKit
         case "status": return try await api.status()
         case "preview": if platform=="bilibili" {return try await api.preview(a.str("room"))};return try await platforms.preview(platform,a.str("room"))
         case "following": return try await api.following(a.int("page"))
-        case "resolve": if platform=="bilibili" {return try await api.resolve(a.str("room"),quality:a.int("quality"),preferTS:a["voice"] as? Bool ?? false)};return try await platforms.resolve(platform,a.str("room"),quality:a.int("quality"))
+        case "resolve": if platform=="bilibili" {return try await api.resolve(a.str("room"),quality:a.int("quality"),preferTS:a["voice"] as? Bool ?? false,audioOnly:a["audioOnly"] as? Bool ?? false)};return try await platforms.resolve(platform,a.str("room"),quality:a.int("quality"))
         case "emojis":
             let room = String(try Safety.room(a.str("room")))
             let data = try await api.data("/xlive/web-ucenter/v2/emoticon/GetEmoticons?platform=pc&room_id=\(room)")
