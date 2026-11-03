@@ -1,12 +1,12 @@
 ## iOS Wi-Fi 域名解析兼容
 
-默认使用系统解析。遇到 `-1003` / `-1006` 时，播放区会显示“启用兼容解析并刷新失败直播间”。只有用户点击后才刷新当前仍失败的路，保留音量、延迟和请求画质；已恢复或已经换房的一路不会被旧错误再次刷新。初次获取房间失败时可用“启用兼容解析并重新开始融合”。没有自动重连或自动换线路。
+默认使用系统解析。遇到 `-1003` / `-1006` 时，播放区会显示“一键修复网络”。只有用户点击后才刷新当前仍失败的路，保留音量、延迟和请求画质；已恢复或已经换房的一路不会被旧错误再次刷新。初次获取房间失败时可用“一键修复网络并开始融合”。没有自动重连或自动换线路。
 
-视频设置中的“网络兼容解析”可随时恢复系统默认。兼容模式使用 Apple Network framework 的 App 范围加密域名解析策略，服务为阿里公共 DNS（`https://dns.alidns.com/dns-query`）；解析服务会接收待解析的域名，不会收到本功能发送的 Cookie、直播签名链接或音频。系统加密 DNS / VPN 优先。该公共服务不保证可用性；设置只作用于本 App 的新连接，并在下次启动时恢复。TLS、Host / SNI 与原始直播域名保持不变。
+视频设置中的“网络兼容解析”可随时恢复系统默认。兼容模式使用 Apple Network framework 的 App 范围加密域名解析策略，提供阿里 DNS（`https://dns.alidns.com/dns-query`）、腾讯 DNS（`https://doh.pub/dns-query`）和 Google DNS（`https://dns.google/dns-query`）预设，不需手填地址。一键修复在系统模式下选择阿里；已有明确选择时保持所选服务；解析服务会接收待解析的域名，不会收到本功能发送的 Cookie、直播签名链接或音频。系统加密 DNS / VPN 优先。这些公共服务不保证可用性，Google 在部分网络可能不可达。腾讯依照官方域名接入方式，不把其普通 DNS 53 端口地址作为 HTTPS 服务器；设置只作用于本 App 的新连接，并在下次启动时恢复。TLS、Host / SNI 与原始直播域名保持不变。
 
 验证覆盖离线 DNS 故障、单路/多路手动恢复、错误域名脱敏及设置持久化。尚未在反馈用户的实体 iPhone / Wi-Fi 上复现，因此不能据此保证所有运营商、路由器或公共 DNS 环境均正常。
 
-官方依据：[Apple App-scoped DNS](https://developer.apple.com/videos/play/wwdc2020/10047/)、[阿里公共 DNS API](https://static-aliyun-doc.oss-cn-hangzhou.aliyuncs.com/download%2Fpdf%2F171662%2FAPI_Reference_intl_en-US.pdf)、[免费服务说明](https://www.alibabacloud.com/help/en/dns/free-service-disclaimer)。
+官方依据：[Apple App-scoped DNS](https://developer.apple.com/videos/play/wwdc2020/10047/)、[阿里公共 DNS API](https://static-aliyun-doc.oss-cn-hangzhou.aliyuncs.com/download%2Fpdf%2F171662%2FAPI_Reference_intl_en-US.pdf)、[免费服务说明](https://www.alibabacloud.com/help/en/dns/free-service-disclaimer)、[腾讯 DNS 域名接入说明](https://docs.dnspod.cn/notices/mian-fei-ban-dot-dohbu-zai-gong-kai-ipjie-ru-de-gong-gao/)、[Google DoH](https://developers.google.com/speed/public-dns/docs/doh)。
 
 # 二路随行 iOS
 
@@ -14,7 +14,7 @@
 
 从 2026-11-04 起只发布 AI 手机版，不再生成普通非 AI 手机安装包。AI 默认关闭；关闭开关或强度为 0 时保留原声音，后续片段不运行 AI。普通工程及历史版本说明保留用于维护，不代表当前发行渠道。
 
-当前版本为 AI 0.4.7 / build 12，iPhone / iPad arm64，最低 iOS 16。A/B/C 三路融合、独立画质/音量/时间偏移、分享码、原生消息画中画、手机控制电视沿用现有实现。SC 设置增加官方时长、按金额分档及所有 SC 统一时长；前台与消息画中画使用相同规则。设置只改变新收到的卡片，不重启旧卡的倒计时。电视需支持 SC 时长配置的接收端，旧接收端不会收到不认识的字段。
+当前版本为 AI 0.4.7 / build 13，iPhone / iPad arm64，最低 iOS 16。A/B/C 三路融合、独立画质/音量/时间偏移、分享码、原生消息画中画、手机控制电视沿用现有实现。SC 设置增加官方时长、按金额分档及所有 SC 统一时长；前台与消息画中画使用相同规则。设置只改变新收到的卡片，不重启旧卡的倒计时。电视需支持 SC 时长配置的接收端，旧接收端不会收到不认识的字段。
 
 使用 `.github/workflows/ios-ai.yml` 手动运行免费额度构建，或在 macOS 执行 `scripts/prepare-ai-voice.sh`、`xcodegen generate --spec project-ai.yml` 后用 Xcode 构建设备包。设备包必须自行签名。`.github/workflows/ios.yml` 仅供明确勾选 `maintenance_only` 的旧非 AI 工程维护，默认跳过；两个流程都没有 push 自动触发。
 
@@ -85,3 +85,5 @@ A/B 额外延迟扩至 20 秒，保留移动端同步实现。普通“第一、
 官方登录页面没有原生桥；本机 Cookie 仅发送到匹配的 B站 API。媒体仅经过本机 127.0.0.1 的随机令牌路径代理，允许指定 HTTPS CDN，不携带 Cookie。无开发者中转服务器、无统计上传。
 
 开发者：B站 @夙潮夜汐
+
+解析预设官方文档：[DNSPod 域名接入公告](https://docs.dnspod.cn/notices/mian-fei-ban-dot-dohbu-zai-gong-kai-ipjie-ru-de-gong-gao/)、[Google DoH](https://developers.google.com/speed/public-dns/docs/doh)、[Google 地址](https://developers.google.com/speed/public-dns/docs/using)。

@@ -176,4 +176,35 @@ final class NetworkResolutionTests: XCTestCase {
         XCTAssertTrue(String(decoding:data,as:UTF8.self).contains("#EXTM3U"))
     }
 
+    @MainActor func testResolverPresetsUseVerifiedEndpointsAndRetainProviderAcrossLaunches() throws {
+        let name="fusion-resolver-presets-"+UUID().uuidString, defaults=UserDefaults(suiteName:name)!
+        defer { defaults.removePersistentDomain(forName:name) }
+        var applied=[NetworkResolution.Mode]()
+        let policy=NetworkResolution(defaults:defaults,apply:{applied.append($0)})
+        let hosts:[NetworkResolution.Mode:String]=[.compatible:"dns.alidns.com",.tencent:"doh.pub",.google:"dns.google"]
+        for mode in NetworkResolution.Mode.allCases {
+            _ = try policy.select(mode.rawValue)
+            let restarted=NetworkResolution(defaults:defaults,apply:{applied.append($0)})
+            restarted.applySaved();XCTAssertEqual(restarted.mode,mode);XCTAssertEqual(applied.last,mode)
+            if let resolver=NetworkResolution.resolver(for:mode) {
+                XCTAssertEqual(resolver.url.scheme,"https");XCTAssertEqual(resolver.url.host,hosts[mode]);XCTAssertEqual(resolver.url.path,"/dns-query")
+            } else {XCTAssertEqual(mode,.system)}
+        }
+        XCTAssertTrue(NetworkResolution.resolver(for:.tencent)!.addresses.isEmpty,"Do not mistake ordinary DNS-53 addresses for HTTPS bootstrap")
+        XCTAssertTrue(NetworkResolution.resolver(for:.google)!.addresses.contains("2001:4860:4860::8888"))
+    }
+
+    @MainActor func testOneClickRecoveryKeepsExplicitTencentOrGooglePreset() async throws {
+        for provider in ["tencent","google"] {
+            let web=try await fixture()
+            _ = try await web.evaluateJavaScript("const choice=document.querySelector('[data-network-mode]');choice.value='\(provider)';choice.dispatchEvent(new Event('change'));true")
+            try await waitFor(web,"savedMode==='\(provider)'&&!document.querySelector('[data-network-mode]').disabled")
+            _ = try await web.evaluateJavaScript("compat.offer('A','域名解析失败（-1003）',channels.A);document.querySelector('[data-network-recover=A]').click();true")
+            try await waitFor(web,"refreshes.length===1&&!document.querySelector('[data-network-mode]').disabled")
+            let result=try await web.evaluateJavaScript("savedMode==='\(provider)'&&requests.filter(x=>x.op==='networkResolutionSet').length===1") as? Bool
+            XCTAssertEqual(result,true,"Recovery uses the chosen provider, never silently switches to AliDNS")
+            web.loadHTMLString("",baseURL:nil)
+        }
+    }
+
 }
