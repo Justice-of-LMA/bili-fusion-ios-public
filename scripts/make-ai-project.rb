@@ -3,8 +3,8 @@ require 'yaml'
 require 'pathname'
 root = Pathname.new(__dir__).parent
 config = YAML.safe_load((root + 'project.yml').read, aliases: true)
-config.fetch('settings').fetch('base')['MARKETING_VERSION'] = '0.4.3'
-config.fetch('settings').fetch('base')['CURRENT_PROJECT_VERSION'] = '8'
+config.fetch('settings').fetch('base')['MARKETING_VERSION'] = '0.4.4'
+config.fetch('settings').fetch('base')['CURRENT_PROJECT_VERSION'] = '9'
 target = config.fetch('targets').fetch('Fusion')
 base = target.fetch('settings').fetch('base')
 base['GCC_PREPROCESSOR_DEFINITIONS'] = '$(inherited) FUSION_AI_VOICE=1'

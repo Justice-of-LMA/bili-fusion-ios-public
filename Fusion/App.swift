@@ -50,7 +50,6 @@ import WebKit
     private var homeNavigation: WKNavigation?
     private var webBottom: NSLayoutConstraint!
     private var webLeading:NSLayoutConstraint!,webTrailing:NSLayoutConstraint!,webTop:NSLayoutConstraint!
-    private var keyboardOverlap:CGFloat=0
     var isMediaProxyRunning: Bool { proxy.isRunning }
     init(assets: WebAssets = WebAssets()) { self.assets = assets; super.init(nibName: nil, bundle: nil) }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -108,8 +107,17 @@ import WebKit
         view.addSubview(startupOverlay)
         NSLayoutConstraint.activate([startupOverlay.leadingAnchor.constraint(equalTo: view.leadingAnchor), startupOverlay.trailingAnchor.constraint(equalTo: view.trailingAnchor), startupOverlay.topAnchor.constraint(equalTo: view.topAnchor), startupOverlay.bottomAnchor.constraint(equalTo: view.bottomAnchor)])
         startupOverlay.onRetry = { [weak self] in self?.reloadHome() }
-        NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
+        let keyboardGuide = view.keyboardLayoutGuide
+        keyboardGuide.followsUndockedKeyboard = false
+        // Tie the guide to layout so a dock, undock or dismissal updates the web viewport.
+        let keyboardAnchor = UILayoutGuide()
+        view.addLayoutGuide(keyboardAnchor)
+        NSLayoutConstraint.activate([
+            keyboardAnchor.topAnchor.constraint(equalTo: keyboardGuide.topAnchor),
+            keyboardAnchor.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            keyboardAnchor.widthAnchor.constraint(equalToConstant: 0),
+            keyboardAnchor.heightAnchor.constraint(equalToConstant: 0)
+        ])
         NotificationCenter.default.addObserver(self, selector: #selector(interruption(_:)), name: AVAudioSession.interruptionNotification, object: nil)
         NotificationCenter.default.addObserver(self,selector:#selector(routeChanged(_:)),name:AVAudioSession.routeChangeNotification,object:nil)
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in Task { @MainActor in self?.tick() } }
@@ -138,24 +146,16 @@ import WebKit
         let detail = WebAssetError.diagnostic(error).map { "\n\($0)。" } ?? ""
         startupOverlay.show("首页未能加载（\(error.domain) / \(error.code)）。\(detail)\n请点重新加载，或将此页面截图反馈。", canRetry: true)
     }
-    @objc private func keyboardChanged(_ notification: Notification) {
-        guard web != nil, let window = view.window else { return }
-        var overlap: CGFloat = 0
-        if notification.name != UIResponder.keyboardWillHideNotification,
-           let screenRect = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-            let rect = view.convert(window.convert(screenRect, from: nil), from: window)
-            let safe = view.safeAreaLayoutGuide.layoutFrame
-            if rect.width >= safe.width * 0.8 && rect.maxY >= safe.maxY - 2 { overlap = max(0, safe.maxY - rect.minY) }
-        }
-        keyboardOverlap=min(overlap,max(0,view.bounds.height-160));updateWebInsets()
-        view.layoutIfNeeded()
-    }
     private func updateWebInsets(){
         guard webLeading != nil else{return}
-        var area=full ? view.bounds:view.safeAreaLayoutGuide.layoutFrame
-        area.size.height=max(1,area.height-keyboardOverlap)
+        let safeArea = view.safeAreaLayoutGuide.layoutFrame
+        var area = full ? view.bounds : safeArea
+        let keyboardTop = view.keyboardLayoutGuide.layoutFrame.minY
+        let dockedKeyboard = keyboardTop > area.minY && keyboardTop < safeArea.maxY - 1
+        if dockedKeyboard { area.size.height = keyboardTop - area.minY }
         let landscape=orientationChoice=="landscape",portrait=orientationChoice=="portrait"
-        let rotate=(landscape && area.width<area.height)||(portrait && area.width>area.height)
+        // During typing the viewport must share the system keyboard's orientation.
+        let rotate = !dockedKeyboard && ((landscape && area.width<area.height)||(portrait && area.width>area.height))
         webLeading.constant=max(1,rotate ? area.height:area.width);webTrailing.constant=max(1,rotate ? area.width:area.height)
         webTop.constant=area.midX-view.bounds.midX;webBottom.constant=area.midY-view.bounds.midY
         web.transform=rotate ? CGAffineTransform(rotationAngle:landscape ? .pi/2:-.pi/2):.identity

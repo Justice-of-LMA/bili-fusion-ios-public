@@ -12,7 +12,7 @@ body.web-layout #normalHistory>.history-title{display:none}
 .web-layout-head strong{flex:1;white-space:nowrap;font-size:13px}
 .web-layout-head button{font-size:10px;min-height:34px;padding:5px;min-width:30px}
 body.web-layout #history{flex:1;min-height:0;max-height:none;overflow:auto;margin-top:8px}
-body.web-layout #composer{position:static;transform:none;opacity:1;visibility:visible;pointer-events:auto;display:flex;flex-wrap:wrap;flex:none;inset:auto;width:100%;margin:5px 0 0;padding-bottom:env(safe-area-inset-bottom);background:#0e1929}
+body.web-layout #composer{position:relative;transform:none;opacity:1;visibility:visible;pointer-events:auto;display:flex;flex-wrap:wrap;flex:none;inset:auto;width:100%;margin:5px 0 0;padding-bottom:env(safe-area-inset-bottom);background:#0e1929}
 body.web-layout #composer #target{max-width:84px}body.web-layout #composer input{min-width:80px;flex:1;width:0}
 body.web-layout #settings{position:fixed;inset:8px 8px 8px auto;width:min(350px,calc(100vw - 16px));height:auto;z-index:180;background:#142136}
 @media(orientation:portrait){
