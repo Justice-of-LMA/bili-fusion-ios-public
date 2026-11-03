@@ -5,7 +5,14 @@ SHA=7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3
 mkdir -p build/ffmpeg-source Vendor/ffmpeg
 ARCHIVE="$PWD/build/ffmpeg-source/ffmpeg-$VERSION.tar.xz"
 if [ -f "$PWD/third-party-sources/ffmpeg-$VERSION.tar.xz" ]; then ARCHIVE="$PWD/third-party-sources/ffmpeg-$VERSION.tar.xz"; fi
-if [ ! -f "$ARCHIVE" ]; then curl --fail --location --max-time 120 "https://ffmpeg.org/releases/ffmpeg-$VERSION.tar.xz" -o "$ARCHIVE"; fi
+if [ ! -f "$ARCHIVE" ]; then
+ PART="$ARCHIVE.part"
+ if ! curl --fail --location --proto '=https' --proto-redir '=https' --connect-timeout 12 --max-time 60 "https://ffmpeg.org/releases/ffmpeg-$VERSION.tar.xz" -o "$PART"; then
+  curl --fail --location --proto '=https' --proto-redir '=https' --connect-timeout 12 --max-time 120 "https://distfiles.macports.org/ffmpeg/ffmpeg-$VERSION.tar.xz" -o "$PART"
+ fi
+ printf '%s  %s\n' "$SHA" "$PART" | shasum -a 256 -c -
+ mv "$PART" "$ARCHIVE"
+fi
 printf '%s  %s\n' "$SHA" "$ARCHIVE" | shasum -a 256 -c -
 tar -xf "$ARCHIVE" -C build/ffmpeg-source
 SOURCE="$PWD/build/ffmpeg-source/ffmpeg-$VERSION"
