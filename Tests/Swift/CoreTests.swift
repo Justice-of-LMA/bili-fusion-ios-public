@@ -60,7 +60,9 @@ final class CoreTests: XCTestCase {
     }
 
     @MainActor func testResolvePreparesIdentityOnceAndUsesCurrentLoginCookies() async throws {
-        let store = WKWebsiteDataStore.nonPersistent().httpCookieStore
+        let dataStore = WKWebsiteDataStore.nonPersistent()
+        defer { withExtendedLifetime(dataStore) {} }
+        let store = dataStore.httpCookieStore
         func setSession(_ value: String) async throws {
             let cookie = try XCTUnwrap(HTTPCookie(properties:[.name:"SESSDATA", .value:value,
                 .domain:".bilibili.com", .path:"/", .secure:"TRUE"]))

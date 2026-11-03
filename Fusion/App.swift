@@ -245,7 +245,9 @@ import WebKit
         case "pipSettings": messagePiP.configure(a)
         case "pipPause": messagePiP.setPaused(a["value"] as? Bool ?? false)
         case "login":
-            if platform=="bilibili" {showLogin(room:0)} else {showPlatform(platform:platform,source:"B",picking:false)}
+            if platform=="bilibili" {
+                if a.str("method")=="qr" { showQRLogin() } else { showLogin(room:0) }
+            } else {showPlatform(platform:platform,source:"B",picking:false)}
         case "verify":
             if platform=="bilibili" {showLogin(room:try Safety.room(a.str("room")))} else {showPlatform(platform:platform,source:a.str("source"),picking:true)}
         case "fullscreen":
@@ -306,6 +308,14 @@ import WebKit
         let page=PlatformAccountController(platform:platform,source:source,picking:picking)
         page.selected={ [weak self] room in guard let self else{return};self.js("window.platformRoomSelected?.(\(self.json(source)),\(self.json(platform)),\(self.json(room)))") }
         page.done={ [weak self] in self?.foreground() };let nav=UINavigationController(rootViewController:page);nav.modalPresentationStyle = .fullScreen;present(nav,animated:true)
+    }
+    private func showQRLogin() {
+        guard presentedViewController == nil else { return }
+        messagePiP.stop(); suspend()
+        let login = BiliQRLoginController()
+        login.done = { [weak self] in self?.foreground() }
+        let nav = UINavigationController(rootViewController: login); nav.modalPresentationStyle = .fullScreen
+        present(nav, animated: true)
     }
     private func showLogin(room: Int64) {
         guard presentedViewController == nil else { return }

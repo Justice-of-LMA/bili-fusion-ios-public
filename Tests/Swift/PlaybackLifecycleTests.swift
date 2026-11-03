@@ -35,7 +35,13 @@ final class PlaybackLifecycleTests:XCTestCase {
         XCTAssertTrue(p.isSuspended);XCTAssertEqual(p.snapshot()["paused"] as? Bool,false);XCTAssertEqual(p.player.rate,0)
         try await Task.sleep(nanoseconds:200_000_000);XCTAssertEqual(p.player.currentTime().seconds,pausedAt,accuracy:0.05)
         p.enterForeground();XCTAssertTrue(p.player.currentItem === item);XCTAssertEqual(p.token,"lifecycle-fixture")
-        try await Task.sleep(nanoseconds:200_000_000);XCTAssertGreaterThan(p.player.currentTime().seconds,pausedAt+0.05)
+        // A loaded CI simulator may not schedule AVPlayer within a fixed 200 ms.
+        // Wait for the same required progress, with a finite limit and no playback retries.
+        for _ in 0..<40 {
+            if p.player.currentTime().seconds > pausedAt+0.05 { break }
+            try await Task.sleep(nanoseconds:50_000_000)
+        }
+        XCTAssertGreaterThan(p.player.currentTime().seconds,pausedAt+0.05)
         p.pause();let userPausedAt=p.player.currentTime().seconds;p.enterBackground(continueAudio:true);p.enterForeground()
         try await Task.sleep(nanoseconds:150_000_000);XCTAssertEqual(p.player.rate,0);XCTAssertEqual(p.player.currentTime().seconds,userPausedAt,accuracy:0.05);XCTAssertEqual(p.snapshot()["paused"] as? Bool,true)
     }
