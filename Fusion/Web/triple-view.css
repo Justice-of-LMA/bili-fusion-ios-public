@@ -8,7 +8,7 @@ body.fusion-triple .status>div{min-width:0;overflow-wrap:anywhere}
 body.fusion-triple #stage>.video-view{position:absolute!important;inset:auto!important;top:0!important;left:0!important;width:100%!important;height:calc(100% - var(--reserved-controls))!important;opacity:1!important;pointer-events:auto!important}
 body.fusion-triple #stage>.video-view[data-role=hidden],body.fusion-triple:not(.dual) #stage>.video-view:not([data-role=main]){display:none!important}
 body.fusion-triple.full #stage>.video-view{height:100%!important}
-body.fusion-triple.dual #stage{padding-top:56.25%!important}
+body.fusion-triple.dual:not(.full):not(.web-layout) #stage{padding-top:56.25%!important}
 body.fusion-triple.dual #stage>.video-view[data-role=main]{width:66.6667%!important}
 body.fusion-triple.dual #stage>.video-view[data-role=side1],body.fusion-triple.dual #stage>.video-view[data-role=side2]{left:66.6667%!important;width:33.3333%!important;height:calc((100% - var(--reserved-controls))/2)!important}
 body.fusion-triple.dual #stage>.video-view[data-role=side2]{top:calc((100% - var(--reserved-controls))/2)!important}
