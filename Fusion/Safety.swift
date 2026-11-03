@@ -23,6 +23,19 @@ enum Safety {
         guard url.scheme == "https", let host = url.host?.lowercased(), url.user == nil, url.password == nil, url.port == nil || url.port == 443 else { return false }
         return ["bilivideo.com", "bilivideo.cn", "biliapi.net", "hdslb.com", "biliimg.com", "bytefcdnrd.com", "smtcdns.net", "huya.com", "msstatic.com", "mobgslb.tbcache.com", "douyucdn.cn", "douyucdn2.cn", "douyuscdn.com", "douyuscdn.cn", "douyucdn.com", "edgesrv.com"].contains { inDomain(host, $0) }
     }
+    static func biliMediaRedirect(_ original: URLRequest, to target: URL?, count: Int) -> URLRequest? {
+        let cdns = ["bilivideo.com", "bilivideo.cn", "biliapi.net", "bytefcdnrd.com", "smtcdns.net"]
+        guard count < 3, let initial = original.url, media(initial), let from = initial.host?.lowercased(),
+              let target, media(target), let to = target.host?.lowercased(),
+              cdns.contains(where: { inDomain(from, $0) }), cdns.contains(where: { inDomain(to, $0) }),
+              let method = original.httpMethod, ["GET", "HEAD"].contains(method) else { return nil }
+        var redirected = URLRequest(url: target, cachePolicy: original.cachePolicy, timeoutInterval: original.timeoutInterval)
+        redirected.httpMethod = method
+        for name in ["User-Agent", "Referer", "Origin", "Range", "Accept-Encoding", "Cache-Control"] {
+            if let value = original.value(forHTTPHeaderField: name) { redirected.setValue(value, forHTTPHeaderField: name) }
+        }
+        return redirected
+    }
     static func message(_ value: String) throws -> String {
         let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.unicodeScalars.count <= 40, !text.unicodeScalars.contains(where: { $0.value < 32 || $0.value == 127 }) else { throw FusionError("弹幕请使用 1–40 字的单行文字") }

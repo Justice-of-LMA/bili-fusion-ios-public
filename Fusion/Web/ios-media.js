@@ -6,7 +6,12 @@ class IOSMedia{
   constructor(source,rpc){this.source=source;this.rpc=rpc;this.element=document.getElementById('video'+source);this.style=this.element.style;this._volume=1;this.token='';this.seekSerial=0;this.pendingSeek=0;this.state={currentTime:0,rate:0,paused:true,readyState:0,ranges:[]};this.at=performance.now();active.set(source,this);}
   command(op,args={}){if(!this.token)return Promise.resolve();return this.rpc(op,{source:this.source,token:this.token,...args});}
   async open(url,type='hls'){if(type==='flv')return this.openWeb(url);this.webMode=false;this.element.classList?.remove('web-player');this.token='media-'+this.source+'-'+(++serial);this.state={currentTime:0,rate:0,paused:true,readyState:0,ranges:[]};this.at=performance.now();return this.command('mediaOpen',{url,volume:this._volume,audioOnly:!!this._audioOnly});}
-  async openWeb(url){if(!window.mpegts?.isSupported())throw Error('当前 iOS 不支持 FLV 播放，请手动选择 HLS 平台或线路');this.webMode=true;this.channels=0;this.onAudioInfo?.(0);this.token='web-'+(++serial);this.element.classList.add('web-player');this.element.setAttribute('disableRemotePlayback','');this.element.disableRemotePlayback=true;const token=this.token,result=await this.rpc('mediaWebURL',{source:this.source,url,token});if(this.token!==token)return;this.engine=mpegts.createPlayer({type:'flv',url:result.url,isLive:true,hasVideo:!this._audioOnly},{enableWorker:false,isLive:true,lazyLoad:false,liveBufferLatencyChasing:false,liveSync:false,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:80,autoCleanupMinBackwardDuration:70});this.engine.on(mpegts.Events.MEDIA_INFO,info=>{this.channels=Number(info.audioChannelCount)||0;this.onAudioInfo?.(this.channels);});this.engine.on(mpegts.Events.ERROR,()=>this.onerror?.(new Error('FLV 播放中断，请手动重新获取')));this.element.onplaying=()=>this.onplaying?.();this.element.onwaiting=()=>this.onwaiting?.();this.element.volume=this._volume;this.engine.attachMediaElement(this.element);this.engine.load();}
+  async openWeb(url){if(!window.mpegts?.isSupported())throw Error('当前 iOS 不支持 FLV 播放，请手动选择 HLS 平台或线路');this.webMode=true;this.channels=0;this.onAudioInfo?.(0);this.token='web-'+(++serial);this.element.classList.add('web-player');this.element.setAttribute('disableRemotePlayback','');this.element.disableRemotePlayback=true;const token=this.token,result=await this.rpc('mediaWebURL',{source:this.source,url,token});if(this.token!==token)return;this.engine=mpegts.createPlayer({type:'flv',url:result.url,isLive:true,hasVideo:!this._audioOnly},{enableWorker:false,isLive:true,lazyLoad:false,liveBufferLatencyChasing:false,liveSync:false,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:80,autoCleanupMinBackwardDuration:70});this.engine.on(mpegts.Events.MEDIA_INFO,info=>{this.channels=Number(info.audioChannelCount)||0;this.onAudioInfo?.(this.channels);});this.engine.on(mpegts.Events.ERROR,()=>{void this.reportWebFailure(token);});this.element.onplaying=()=>this.onplaying?.();this.element.onwaiting=()=>this.onwaiting?.();this.element.volume=this._volume;this.engine.attachMediaElement(this.element);this.engine.load();}
+  async reportWebFailure(token){
+    let detail='';
+    try{detail=(await this.command('mediaFailure'))?.detail||'';}catch{}
+    if(this.token===token)this.onerror?.(new Error(detail||'FLV 播放中断，请手动重新获取'));
+  }
   get audioOnly(){return !!this._audioOnly;}
   set audioOnly(value){this._audioOnly=!!value;if(this.webMode){this.element.style.visibility=value?'hidden':'visible';return;}this.command('mediaAudioOnly',{value:this._audioOnly}).catch(e=>this.onseekerror?.(e));}
   get currentTime(){if(this.webMode)return this.element.currentTime;const s=this.state;return s.currentTime+(!this.pendingSeek&&!s.paused&&!s.seeking&&s.readyState>=3?s.rate*Math.min(.3,(performance.now()-this.at)/1000):0);}
@@ -27,7 +32,7 @@ class IOSMedia{
   update(state){
     if(this.webMode||!this.token||state.token!==this.token)return;
     const wasWaiting=this.waiting,before=this.state;if(this.pendingSeek)state={...state,currentTime:before.currentTime,seeking:true};this.state=state;this.at=performance.now();
-    if(state.error&&!before.error)this.onerror?.(new Error(state.error));
+    if(state.error&&!before.error)this.onerror?.(new Error(state.transportIssue||state.error));
     else if(state.rate>0&&state.readyState>=3&&(before.rate===0||before.readyState<3))this.onplaying?.();
     else if(this.waiting&&!wasWaiting)this.onwaiting?.();
   }

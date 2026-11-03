@@ -258,7 +258,7 @@ class Channel{
     this.receivedChats=0;this.displayedChats=0;this.countedMessages=new WeakSet();this.index=0;this.closed=false;this.delay=0;this.holdUntil=0;this.started=false;this.pending=[];this.lastEnd=0;this.endAt=performance.now();this.lastMediaTime=0;this.chatState='消息准备中';
     this.media.onwaiting=()=>this.renderStatus('正在缓冲');
     this.media.onplaying=()=>this.playing();
-    this.media.onerror=()=>this.fallback();
+    this.media.onerror=error=>this.fallback(error?.message);
     this.media.onAudioInfo=()=>{if(this.source==='A')void applyVoice();};
     this.media.onseekerror=e=>{this.holdUntil=0;this.renderStatus('跳转未完成，请点继续或重新调整');notice(this.source+' 延迟调整失败：'+e.message,true);};
   }
@@ -309,7 +309,7 @@ class Channel{
   }
   fallback(reason){
     if(this.closed||this.retry||this.switching)return;
-    this.media.pause();this.renderStatus(reason||'播放中断，请手动重新获取画质');notice(this.source+' 播放停止，未自动重连或切换线路。',true);
+    this.media.pause();this.renderStatus(reason||'播放中断，请手动重新获取画质');notice(this.source+' 播放停止，未自动重连或切换线路。'+(reason?' '+reason:''),true);
   }
   edge(now){
     const r=ranges(this.media);if(!r.length)return null;

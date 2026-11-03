@@ -31,7 +31,7 @@ final class RuntimeTests: XCTestCase {
         throw FusionError("Web runtime test timed out")
     }
     @MainActor func testBundledWebFullscreenControlsAndBridge() async throws {
-        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.4.4" : "0.3.4")
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.4.5" : "0.3.5")
         let web = try appWeb()
         XCTAssertEqual(web.superview?.keyboardLayoutGuide.followsUndockedKeyboard, false)
         try await waitFor(web, "typeof receiveNative === 'function' && !!document.getElementById('full')")
@@ -209,6 +209,71 @@ final class RuntimeTests: XCTestCase {
         let forbidden = local.deletingLastPathComponent().appendingPathComponent("not-registered")
         let (_, response) = try await URLSession.shared.data(from:forbidden)
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode,404)
+    }
+
+    @MainActor func testBilibiliColdStartFollowsCDNRedirectAndUsesFinalPlaylistBase() async throws {
+        let original = URL(string: "https://a.bilivideo.com/live/start.m3u8")!
+        let playlist = URL(string: "https://b.bilivideo.cn/new/index.m3u8?key=fixture")!
+        let segment = URL(string: "https://b.bilivideo.cn/new/segment.ts")!
+        var requests = [URLRequest]()
+        let proxy = MediaProxy { request, _ in
+            requests.append(request)
+            let url = try XCTUnwrap(request.url)
+            switch url {
+            case original:
+                return (Data(), HTTPURLResponse(url: url, statusCode: 302, httpVersion: nil,
+                    headerFields: ["Location": playlist.absoluteString])!)
+            case playlist:
+                return (Data("#EXTM3U\n#EXTINF:2,\nsegment.ts\n".utf8),
+                    HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil,
+                        headerFields: ["Content-Type": "application/vnd.apple.mpegurl"])!)
+            case segment:
+                return (Data([1, 2, 3]), HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+            default: throw URLError(.badURL)
+            }
+        }
+        try await proxy.start()
+        defer { proxy.stop() }
+        let local = try proxy.register(original, owner: proxy.begin("A", token: "fixture"))
+        var head = URLRequest(url: local); head.httpMethod = "HEAD"
+        let (_, headResponse) = try await URLSession.shared.data(for: head)
+        XCTAssertEqual((headResponse as? HTTPURLResponse)?.statusCode, 200)
+        let (data, response) = try await URLSession.shared.data(from: local)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        let path = try XCTUnwrap(String(decoding: data, as: UTF8.self).split(separator: "\n").last)
+        let (media, _) = try await URLSession.shared.data(from: try XCTUnwrap(URL(string: String(path))))
+        XCTAssertEqual(media, Data([1, 2, 3]))
+        XCTAssertEqual(requests.compactMap(\.url), [original, playlist, original, playlist, segment])
+        XCTAssertEqual(requests.compactMap(\.httpMethod), ["HEAD", "HEAD", "GET", "GET", "GET"])
+        XCTAssertTrue(requests.allSatisfy { $0.value(forHTTPHeaderField: "Cookie") == nil })
+        XCTAssertEqual(proxy.lastFailure("A", token: "fixture"), "")
+    }
+
+    @MainActor func testMediaRedirectBoundariesAndFailureDiagnostic() async throws {
+        let original = URL(string: "https://a.bilivideo.com/live/index.m3u8")!
+        var request = URLRequest(url: original)
+        request.setValue("bytes=5-10", forHTTPHeaderField: "Range")
+        request.setValue("do-not-forward", forHTTPHeaderField: "Cookie")
+        request.setValue("do-not-forward", forHTTPHeaderField: "Authorization")
+        let redirect = Safety.biliMediaRedirect(request, to: URL(string: "https://b.bilivideo.cn/clip.ts"), count: 0)
+        XCTAssertEqual(redirect?.value(forHTTPHeaderField: "Range"), "bytes=5-10")
+        XCTAssertNil(redirect?.value(forHTTPHeaderField: "Cookie"))
+        XCTAssertNil(redirect?.value(forHTTPHeaderField: "Authorization"))
+        XCTAssertNil(Safety.biliMediaRedirect(request, to: URL(string: "https://b.bilivideo.cn/clip.ts"), count: 3))
+        XCTAssertNil(Safety.biliMediaRedirect(request, to: URL(string: "https://evil.test/clip.ts"), count: 0))
+        XCTAssertNil(Safety.biliMediaRedirect(request, to: URL(string: "http://b.bilivideo.cn/clip.ts"), count: 0))
+        var calls = 0
+        let proxy = MediaProxy { _, _ in calls += 1; throw URLError(.timedOut) }
+        try await proxy.start()
+        defer { proxy.stop() }
+        let local = try proxy.register(original, owner: proxy.begin("A", token: "old"))
+        let (_, response) = try await URLSession.shared.data(from: local)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 502)
+        XCTAssertEqual(calls, 1)
+        XCTAssertTrue(proxy.lastFailure("A", token: "old").contains("超时"))
+        XCTAssertEqual(proxy.lastFailure("B", token: "old"), "")
+        _ = proxy.begin("A", token: "new")
+        XCTAssertEqual(proxy.lastFailure("A", token: "old"), "")
     }
 
     @MainActor func testManagedMediaSourcePlaybackPathForPlatformFLV() async throws {

@@ -11,10 +11,54 @@ import Network
     private var listener: NWListener?
     private var port: UInt16 = 0
     private var urls = [String: (URL, Date, String)]()
+    private var failures = [String: (Date, String)]()
     private var voice = [String: Float](), voiceStatus = [String: String](), fragmented = Set<String>(), owners=[String:String]()
-    func begin(_ source:String,token:String)->String{let owner=source+":"+token;if let old=owners[source]{voice.removeValue(forKey:old);voiceStatus.removeValue(forKey:old);fragmented.remove(old)};owners[source]=owner;voice[owner]=voice[source] ?? 0;return owner}
+    func begin(_ source:String,token:String)->String{let owner=source+":"+token;if let old=owners[source]{voice.removeValue(forKey:old);voiceStatus.removeValue(forKey:old);fragmented.remove(old);failures.removeValue(forKey:old)};owners[source]=owner;voice[owner]=voice[source] ?? 0;return owner}
     func setVoice(_ owner: String, strength: Float) { voice[owner] = max(0,min(1,strength)); let key=owners[owner] ?? owner;voice[key]=voice[owner];voiceStatus[key] = strength > 0 ? "等待后续片段处理（已缓存声音暂不改变）" : "已关闭" }
     func voiceDetail(_ owner: String) -> String { voiceStatus[owners[owner] ?? owner] ?? "已关闭" }
+    func lastFailure(_ source: String, token: String) -> String {
+        let owner = source + ":" + token
+        guard owners[source] == owner, let failure = failures[owner], Date().timeIntervalSince(failure.0) <= 45 else { return "" }
+        return failure.1
+    }
+    private func recordFailure(_ owner: String, _ message: String) {
+        guard owners.values.contains(owner) else { return }
+        failures[owner] = (Date(), message)
+    }
+    nonisolated static func networkDetail(_ error: Error) -> String {
+        let failure = error as NSError
+        guard failure.domain == NSURLErrorDomain else { return "媒体请求失败" }
+        let detail: String
+        switch failure.code {
+        case NSURLErrorTimedOut: detail = "连接或读取直播线路超时"
+        case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed: detail = "直播线路域名解析失败"
+        case NSURLErrorCannotConnectToHost: detail = "无法连接直播线路"
+        case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost: detail = "直播线路网络连接中断"
+        case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasBadDate:
+            detail = "直播线路安全连接失败"
+        default: detail = "直播线路请求失败"
+        }
+        return "\(detail)（\(failure.code)）"
+    }
+    private func fetchMedia(_ original: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
+        var request = original
+        var visited = Set<URL>()
+        if let url = original.url { visited.insert(url) }
+        for count in 0...3 {
+            let result = try await fetch(request, limit)
+            let response = result.1
+            guard [301, 302, 303, 307, 308].contains(response.statusCode) else { return result }
+            let target = response.value(forHTTPHeaderField: "Location").flatMap {
+                URL(string: $0, relativeTo: request.url)?.absoluteURL
+            }
+            guard let target, visited.insert(target).inserted,
+                  let next = Safety.biliMediaRedirect(original, to: target, count: count) else {
+                throw FusionError("直播线路重定向不可用（HTTP \(response.statusCode)）")
+            }
+            request = next
+        }
+        throw FusionError("直播线路重定向次数过多")
+    }
     private var reverse = [String: String]()
     private var connections = [UUID: NWConnection]()
     private var pipes=[ObjectIdentifier:MediaBytePipe]()
@@ -139,14 +183,15 @@ import Network
         if entry.0.path.lowercased().contains(".flv"),first[0]=="GET" {
             if VoiceSegment.aiEnabled, (voice[entry.2] ?? 0) > 0 { voiceStatus[entry.2]="当前 FLV 为透传，没有 AI 处理；请手动选择可用的 HLS/TS 线路" }
             let key=ObjectIdentifier(connection),pipe=MediaBytePipe(connection:connection,request:req);pipes[key]=pipe
+            pipe.onFailure={ [weak self, owner=entry.2] message in Task{@MainActor in self?.recordFailure(owner,message)} }
             pipe.onClose={ [weak self] in Task{@MainActor in self?.pipes.removeValue(forKey:key)} };pipe.start();return
         }
         do {
-            var (data, response) = try await fetch(req, isHead ? Int.max : 24 * 1024 * 1024)
-            guard [200, 206].contains(response.statusCode) else { respond(connection, code: 502, body: Data()); return }
+            var (data, response) = try await fetchMedia(req, limit: isHead ? Int.max : 24 * 1024 * 1024)
+            guard [200, 206].contains(response.statusCode) else { throw FusionError("直播线路返回 HTTP \(response.statusCode)") }
             var type = response.mimeType ?? "application/octet-stream"
-            let isManifest = knownManifest || type.lowercased().contains("mpegurl") || data.prefix(7) == Data("#EXTM3U".utf8)
-            guard !isManifest || response.statusCode == 200 else { respond(connection, code: 502, body: Data()); return }
+            let isManifest = knownManifest || response.url?.path.lowercased().hasSuffix(".m3u8") == true || type.lowercased().contains("mpegurl") || data.prefix(7) == Data("#EXTM3U".utf8)
+            guard !isManifest || response.statusCode == 200 else { throw FusionError("直播播放列表返回了部分内容（HTTP 206）") }
             if isHead {
                 var extras=[String:String]()
                 if !isManifest { for name in ["Content-Range","Accept-Ranges"] { if let value=response.value(forHTTPHeaderField:name), !value.contains("\r"), !value.contains("\n") { extras[name]=value } } }
@@ -158,7 +203,7 @@ import Network
             if isManifest {
                 guard response.statusCode == 200, data.count < 1024 * 1024, let text = String(data: data, encoding: .utf8), text.hasPrefix("#EXTM3U") else { throw FusionError("播放列表无效") }
                 if text.contains("#EXT-X-MAP") { fragmented.insert(entry.2); if (voice[entry.2] ?? 0) > 0 { voiceStatus[entry.2] = "当前为分片 MP4，保持原声音；请点“应用人声设置并手动重新获取 A”改取 TS" } }
-                data = Data(try rewrite(text, base: entry.0, owner: entry.2).utf8); type = "application/vnd.apple.mpegurl"
+                data = Data(try rewrite(text, base: response.url ?? entry.0, owner: entry.2).utf8); type = "application/vnd.apple.mpegurl"
             }
             var transformed=false
             if !isManifest, (voice[entry.2] ?? 0) > 0, !fragmented.contains(entry.2), data.first == 0x47, (req.value(forHTTPHeaderField:"Range")==nil || req.value(forHTTPHeaderField:"Range")=="bytes=0-") {
@@ -171,7 +216,10 @@ import Network
                 for name in ["Content-Range", "Accept-Ranges"] { if let value = response.value(forHTTPHeaderField: name), !value.contains("\r"), !value.contains("\n") { extras[name] = value } }
             }
             respond(connection, code: transformed ? 200:response.statusCode, body: data, type: type, headers: extras, head: first[0] == "HEAD")
-        } catch { respond(connection, code: 502, body: Data()) }
+        } catch {
+            recordFailure(entry.2, (error as? FusionError)?.message ?? Self.networkDetail(error))
+            respond(connection, code: 502, body: Data())
+        }
     }
     func rewrite(_ manifest: String, base: URL, owner: String = "") throws -> String {
         let regex = try NSRegularExpression(pattern: "URI=\"([^\"]+)\"")
@@ -211,5 +259,5 @@ import Network
         var output = Data((h + "\r\n").utf8); if !head { output.append(body) }
         connection.send(content: output, completion: .contentProcessed { _ in connection.cancel() })
     }
-    func stop() { finishStart(.failure(FusionError("播放器已关闭"))); listener?.cancel(); listener = nil; for pipe in pipes.values {pipe.cancel()};pipes.removeAll(); for c in connections.values { c.cancel() }; connections.removeAll();activeRequests.removeAll(); urls.removeAll(); reverse.removeAll(); voice.removeAll(); voiceStatus.removeAll(); fragmented.removeAll();owners.removeAll(); port = 0 }
+    func stop() { finishStart(.failure(FusionError("播放器已关闭"))); listener?.cancel(); listener = nil; for pipe in pipes.values {pipe.cancel()};pipes.removeAll(); for c in connections.values { c.cancel() }; connections.removeAll();activeRequests.removeAll(); urls.removeAll(); reverse.removeAll(); voice.removeAll(); voiceStatus.removeAll(); fragmented.removeAll();owners.removeAll();failures.removeAll(); port = 0 }
 }

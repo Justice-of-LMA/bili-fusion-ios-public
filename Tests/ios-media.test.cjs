@@ -59,3 +59,11 @@ test('initial buffer wait is visible but explicit pause and pending seek are nev
  win.iosMediaState({A:{token:media.token,currentTime:0,rate:0,readyState:2,paused:false,seeking:true,waiting:true}});
  assert.equal(media.waiting,false);assert.equal(waits,1);
 });
+
+test('terminal CDN failure exposes the current transport cause without reopening the player',async()=>{
+ const {media,calls,win}=setup();await media.open('https://x.bilivideo.com/a.m3u8');
+ const errors=[];media.onerror=error=>errors.push(error.message);
+ const state={token:media.token,currentTime:0,rate:0,readyState:0,paused:true,error:'generic',transportIssue:'直播线路连接超时'};
+ win.iosMediaState({A:state});win.iosMediaState({A:state});
+ assert.deepEqual(errors,['直播线路连接超时']);assert.deepEqual(calls.map(c=>c.op),['mediaOpen']);
+});

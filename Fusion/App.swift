@@ -266,6 +266,8 @@ import WebKit
             if !opened { let fallback = await UIApplication.shared.open(URL(string: receipt)!); if !fallback { throw FusionError("无法打开支付宝，请使用收款码") } }
         case "mediaWebURL":
             let source=a.str("source");guard ["A","B","C"].contains(source),a.str("token").matches("^[A-Za-z0-9-]{1,100}$"),let url=URL(string:a.str("url")),Safety.media(url) else{throw FusionError("媒体地址无效")};if videoPiP.source==source{videoPiP.stop()};players[source]?.close();try await proxy.start();return ["url":try proxy.register(url,owner:proxy.begin(source,token:a.str("token"))).absoluteString]
+        case "mediaFailure":
+            return ["detail": proxy.lastFailure(a.str("source"), token: a.str("token"))]
         case "voiceMode": return ["ai":VoiceSegment.aiEnabled]
         case "mediaVoice":
             let strength=(a["strength"] as? NSNumber)?.floatValue ?? 0
@@ -333,7 +335,18 @@ import WebKit
             p.surface.layer.cornerRadius = full ? 0 : 12
         }
     }
-    private func tick() { guard UIApplication.shared.applicationState == .active else { return }; js("window.__fusionVoiceStatus?.(\(json(proxy.voiceDetail("A"))))"); js("window.iosMediaState?.(\(json(players.mapValues { $0.snapshot() })))") }
+    private func mediaSnapshots() -> [String: JSON] {
+        var snapshots = [String: JSON]()
+        for (source, player) in players {
+            var state = player.snapshot()
+            if !state.str("error").isEmpty {
+                state["transportIssue"] = proxy.lastFailure(source, token: player.token)
+            }
+            snapshots[source] = state
+        }
+        return snapshots
+    }
+    private func tick() { guard UIApplication.shared.applicationState == .active else { return }; js("window.__fusionVoiceStatus?.(\(json(proxy.voiceDetail("A"))))"); js("window.iosMediaState?.(\(json(mediaSnapshots())))") }
     private func stopSockets() { platformSender.cancel();videoPiP.stop();messagePiP.stop(); for s in sockets.values { s.close() }; sockets.removeAll() }
     private func suspend() {accountPresented=true;platformSender.cancel();for p in players.values{p.suspendForAccount(true)};UIApplication.shared.isIdleTimerDisabled=false;notifyLifecycle()}
     func setNativeFullscreen(_ value:Bool){full=value;setNeedsStatusBarAppearanceUpdate();setNeedsUpdateOfHomeIndicatorAutoHidden();if #available(iOS 26.0,*){setNeedsUpdateOfPrefersInterfaceOrientationLocked()};updateWebInsets();view.setNeedsLayout();notifyLifecycle()}
