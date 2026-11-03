@@ -12,11 +12,11 @@ for(const node of [...root.children]){if(node===title)continue;
  if(node.classList.contains('toggles')){for(const label of [...node.children]){const id=label.querySelector('input')?.id||'';const key=/^sc[ABC]$/.test(id)?'sc':'chat';let group=panels[key].querySelector('.toggles');if(!group){group=document.createElement('div');group.className='toggles';panels[key].append(group);}group.append(label);}node.remove();scHints=false;section='chat';continue;}
  const ids=[node.id,...[...node.querySelectorAll('[id]')].map(e=>e.id)].join(' ');
  let key=section;
- if(/\b(scPosition|scCorner|scDrag|scDraggable)\b/.test(ids)){key='sc';scHints=true;}
+ if(/\b(scLifetimeSettings|scPosition|scCorner|scDrag|scDraggable)\b/.test(ids)){key='sc';scHints=true;}
  else if(node.tagName==='P'&&scHints)key='sc';
  else if(/\b(audioBC|audioOnly[ABC]|audioModeHint)\b/.test(ids)){key='video';scHints=false;}
  else if(/\b(volume[ABC]|delay[ABC]|voice\w*)\b/.test(ids)){key='audio';scHints=false;}
- else if(/\b(quality[ABC]\w*|refreshQuality[ABC]|verifyQuality[ABC]|backgroundMode|screenOrientation|pip\w*)\b/.test(ids)){key='video';scHints=false;}
+ else if(/\b(networkResolutionSettings|quality[ABC]\w*|refreshQuality[ABC]|verifyQuality[ABC]|backgroundMode|screenOrientation|pip\w*)\b/.test(ids)){key='video';scHints=false;}
  else if(/\b(chat\w*|refresh[ABC]|reconnect|verify|blockingSettings|size|opacity|font|color|marker|maxRows|nonOverlap|mergeSame|user|original)\b/.test(ids)){key='chat';scHints=false;}
  panels[key].append(node);
 }

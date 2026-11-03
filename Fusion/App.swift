@@ -5,6 +5,8 @@ import WebKit
 @main @MainActor final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Before scenes construct API clients, WebKit or any URLSession.
+        NetworkResolution.shared.applySaved()
         return true
     }
     func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
@@ -186,6 +188,8 @@ import WebKit
         let platform=a.str("platform").isEmpty ? "bilibili":a.str("platform")
         guard ["bilibili","huya","douyu"].contains(platform) else { throw FusionError("不支持的平台") }
         switch op {
+        case "networkResolutionGet": return NetworkResolution.shared.state
+        case "networkResolutionSet": return try NetworkResolution.shared.select(a.str("mode"))
         case "clipboardWrite":
             let text=a.str("text");guard text.count<=16384 else{throw FusionError("复制内容过长")};UIPasteboard.general.string=text
         case "clipboardRead":
@@ -220,6 +224,7 @@ import WebKit
             guard ["A","B","C"].contains(source), epoch.matches("^[A-Za-z0-9-]{1,80}$") else { throw FusionError("连接参数无效") }
             sockets[source]?.close()
             if source == "B" {
+                if let lifetime = a["scLifetime"] { messagePiP.setSCLifetime(lifetime) }
                 pipPlatform=platform;pipRoom = room; messagePiP.selectRoom(pipRoom,title:a.str("title").isEmpty ? "二路消息 · \(room)" : a.str("title"),platform:platform)
                 if let cached = learned[pipRoom] { messagePiP.learn(cached) }
             }
@@ -243,6 +248,7 @@ import WebKit
             catch {if let previous=messagePriorAudioOnly{b.setAudioOnly(previous);messagePriorAudioOnly=nil};throw error }
         case "pipStop": messagePiP.stop()
         case "pipSettings": messagePiP.configure(a)
+        case "pipDismissSC": if a.str("room") == pipRoom { messagePiP.dismissSC(a.str("id")) }
         case "pipPause": messagePiP.setPaused(a["value"] as? Bool ?? false)
         case "login":
             if platform=="bilibili" {
@@ -267,7 +273,7 @@ import WebKit
             let opened = await UIApplication.shared.open(scheme)
             if !opened { let fallback = await UIApplication.shared.open(URL(string: receipt)!); if !fallback { throw FusionError("无法打开支付宝，请使用收款码") } }
         case "mediaWebURL":
-            let source=a.str("source");guard ["A","B","C"].contains(source),a.str("token").matches("^[A-Za-z0-9-]{1,100}$"),let url=URL(string:a.str("url")),Safety.media(url) else{throw FusionError("媒体地址无效")};if videoPiP.source==source{videoPiP.stop()};players[source]?.close();try await proxy.start();return ["url":try proxy.register(url,owner:proxy.begin(source,token:a.str("token"))).absoluteString]
+            let source=a.str("source");guard ["A","B","C"].contains(source),a.str("token").matches("^[A-Za-z0-9-]{1,100}$"),let url=URL(string:a.str("url")),Safety.media(url) else{throw FusionError("媒体地址无效")};if videoPiP.source==source{videoPiP.stop()};if source == "B" {messagePiP.restartMedia()};players[source]?.close();try await proxy.start();return ["url":try proxy.register(url,owner:proxy.begin(source,token:a.str("token"))).absoluteString]
         case "mediaFailure":
             return ["detail": proxy.lastFailure(a.str("source"), token: a.str("token"))]
         case "voiceMode": return ["ai":VoiceSegment.aiEnabled]
@@ -283,7 +289,7 @@ import WebKit
             guard let p = players[source], token.matches("^[A-Za-z0-9-]{1,100}$") else { throw FusionError("播放器参数无效") }
             if op == "mediaOpen" {
                 if videoPiP.source==source{videoPiP.stop()}
-                if source == "B" { messagePiP.stop() }
+                if source == "B" { messagePiP.restartMedia(); messagePiP.stop() }
                 guard let url = URL(string: a.str("url")), Safety.media(url) else { throw FusionError("直播线路无效") }
                 try await proxy.start()
                 p.open(url: try proxy.register(url,owner:proxy.begin(source,token:token)), token: token, volume: (a["volume"] as? NSNumber)?.floatValue ?? 1, audioOnly: a["audioOnly"] as? Bool == true); applyLayout()
@@ -296,7 +302,7 @@ import WebKit
                 case "mediaSeek": try await p.seek((a["time"] as? NSNumber)?.doubleValue ?? .nan); return ["ok":true,"state":p.snapshot()]
                 case "mediaVolume": p.player.volume = max(0, min(1, (a["volume"] as? NSNumber)?.floatValue ?? 1))
                 case "mediaAudioOnly": p.setAudioOnly( a["value"] as? Bool == true)
-                default: if source == "B" { messagePiP.stop() };if videoPiP.source==source{videoPiP.stop()};p.close(); UIApplication.shared.isIdleTimerDisabled = players.values.contains { !$0.token.isEmpty }
+                default: if source == "B" { messagePiP.restartMedia(); messagePiP.stop() };if videoPiP.source==source{videoPiP.stop()};p.close(); UIApplication.shared.isIdleTimerDisabled = players.values.contains { !$0.token.isEmpty }
                 }
             }
         default: throw FusionError("不支持的操作")

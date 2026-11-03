@@ -13,11 +13,13 @@ struct PiPMessage: Equatable {
     let price: Int?
     let parts: [PiPFragment]
     var at: Double?
-    let duration: Double
+    var duration: Double
 }
 struct PiPMessageStore {
     private(set) var items = [PiPMessage]()
     private var deleted = Set<String>()
+    private var seenSC = Set<String>(), seenOrder = [String]()
+    var scLifetime = SCLifetimePolicy()
     private var book = [String: PiPFragment]()
     private var serial = 0
     private var blocking: JSON = [:]
@@ -106,13 +108,17 @@ struct PiPMessageStore {
             parts = segments(text, direct: object(meta.count > 13 ? meta[13] : nil), inline: object(extra["extra"]).obj("emots"))
             serial += 1; id = "chat:\(serial)"
         } else if ["SUPER_CHAT_MESSAGE", "SUPER_CHAT_MESSAGE_JPN"].contains(cmd) {
-            id = String(describing: d["id"] ?? ""); guard !id.isEmpty, !deleted.contains(id), !items.contains(where: { $0.id == id }) else { return }
+            id = String(describing: d["id"] ?? ""); guard !id.isEmpty, !deleted.contains(id), !seenSC.contains(id) else { return }
+            seenSC.insert(id); seenOrder.append(id)
+            if seenOrder.count > 2000 { seenSC.remove(seenOrder.removeFirst()) }
             user = String((d.obj("user_info").str("uname").isEmpty ? d.str("uname") : d.obj("user_info").str("uname")).prefix(60))
             text = String(d.str("message").prefix(2000)); price = max(0,min(10000000,d.int("price")))
             uid = String(describing:d["uid"] ?? d.obj("user_info")["uid"] ?? "")
-            let total = max(1,min(7200,Double(d.int("time") > 0 ? d.int("time") : 60)))
-            duration = d.int64("end_time") > 0 ? min(total,Double(d.int64("end_time"))-now) : total
-            guard duration > 0 else { return }; parts = segments(text)
+            let start = Double(d.int64("start_time")), end = Double(d.int64("end_time"))
+            let announced = d.int("time") > 0 ? Double(d.int("time")) : (end > start && start > 0 ? end-start : 60)
+            let total = max(1,min(7200,announced)), remaining = end > 0 ? min(total,end-now) : total
+            guard let lifetime = scLifetime.lifetime(price:price ?? 0,officialRemaining:remaining,officialTotal:total) else { return }
+            duration = lifetime.duration; parts = segments(text)
         } else { return }
         guard !text.isEmpty || parts.contains(where: { $0.image != nil }) else { return }
         guard !BlockRules.matches(blocking,uid:uid,name:user,text:text,platform:platform) else { return }
@@ -134,5 +140,20 @@ struct PiPMessageStore {
         let chatItems = Array(chats.suffix(max(0,count-cards.count)))
         return cards + chatItems
     }
-    mutating func clearMessages() { items.removeAll(); deleted.removeAll() }
+    mutating func restartMedia(time: Double) {
+        guard time.isFinite else { return }
+        items = items.compactMap { original in
+            guard original.price != nil else { return nil }
+            var message = original
+            if let at = message.at { message.duration -= max(0,time-at) }
+            guard message.duration > 0 else { return nil }
+            message.at = nil; return message
+        }
+    }
+    mutating func dismissSC(_ id: String) {
+        guard !id.isEmpty, id.count <= 200 else { return }
+        deleted.insert(id); items.removeAll { $0.id == id }
+        if deleted.count > 2000 { deleted = Set(deleted.sorted().suffix(2000)) }
+    }
+    mutating func clearMessages() { items.removeAll() }
 }

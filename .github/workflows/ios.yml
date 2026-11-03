@@ -1,7 +1,11 @@
-name: Build iOS IPA
+name: Legacy non-AI maintenance (not a phone release)
 on:
   workflow_dispatch:
     inputs:
+      maintenance_only:
+        description: Explicit legacy non-AI maintenance only; current phone releases use ios-ai.yml
+        type: boolean
+        default: false
       run_tests:
         description: Run simulator unit tests
         required: true
@@ -26,6 +30,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
+    if: inputs.maintenance_only
     runs-on: macos-26
     timeout-minutes: 30
     env:
@@ -105,7 +110,7 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
   compatibility-27:
-    if: inputs.run_tests && inputs.compatibility
+    if: inputs.maintenance_only && inputs.run_tests && inputs.compatibility
     runs-on: xcode-27
     timeout-minutes: 25
     env:

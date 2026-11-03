@@ -42,7 +42,7 @@ final class MessageSurface: UIView {
     }
     func selectRoom(_ id: String, title: String, platform:String="bilibili") {
         self.title = String(title.prefix(60))
-        if room != platform+":"+id { room = platform+":"+id; store = PiPMessageStore(); images.removeAll(); attempted.removeAll(); loading.removeAll(); imageGeneration += 1 }
+        if room != platform+":"+id { room = platform+":"+id; let lifetime = store.scLifetime; store = PiPMessageStore(); store.scLifetime = lifetime; images.removeAll(); attempted.removeAll(); loading.removeAll(); imageGeneration += 1 }
         store.platform=platform
     }
     func learn(_ data: Any) { store.learn(data) }
@@ -51,7 +51,11 @@ final class MessageSurface: UIView {
         if !event.str("status").isEmpty { connection = String(event.str("status").prefix(100)) }
         if let packet = event["packet"] as? JSON { store.receive(packet, edge: clock().edge) }
     }
+    func restartMedia() { store.restartMedia(time:clock().time) }
+    func dismissSC(_ id: String) { store.dismissSC(id); render() }
+    func setSCLifetime(_ value: Any?) { store.scLifetime = SCLifetimePolicy(value) }
     func configure(_ args: JSON) {
+        if let lifetime = args["scLifetime"] { setSCLifetime(lifetime) }
         store.mergeSame=args["mergeSame"] as? Bool ?? false
         rows = max(2,min(8,args.int("rows") == 0 ? 5 : args.int("rows")))
         showChat = args["chat"] as? Bool ?? true; showSC = args["sc"] as? Bool ?? true; showUser = args["user"] as? Bool ?? true

@@ -45,6 +45,6 @@ final class MediaBytePipe: NSObject, URLSessionDataDelegate {
     private func pump(){guard !closed,!sending else{return};guard !queue.isEmpty else{if finished{stop()};return};sending=true;let data=queue.removeFirst()
         connection.send(content:data,completion:.contentProcessed{ error in DispatchQueue.main.async{self.sending=false;self.bytes-=data.count;if error != nil{self.stop()}else{self.pump()}}})
     }
-    func urlSession(_ session:URLSession,task:URLSessionTask,didCompleteWithError error:Error?){DispatchQueue.main.async{guard !self.closed else{return};if let error, (error as? URLError)?.code != .cancelled {self.onFailure?(MediaProxy.networkDetail(error))};if !self.started{self.enqueue(Data("HTTP/1.1 502 Error\r\nContent-Length: 0\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n".utf8))}else if error==nil{self.enqueue(Data("0\r\n\r\n".utf8))};self.finished=true;self.pump()}}
+    func urlSession(_ session:URLSession,task:URLSessionTask,didCompleteWithError error:Error?){let failedURL=task.currentRequest?.url ?? request.url;DispatchQueue.main.async{guard !self.closed else{return};if let error, (error as? URLError)?.code != .cancelled {self.onFailure?(MediaProxy.networkDetail(error,url:failedURL,stage:self.redirects > 0 ? "重定向后的 FLV 直播":"FLV 直播"))};if !self.started{self.enqueue(Data("HTTP/1.1 502 Error\r\nContent-Length: 0\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n".utf8))}else if error==nil{self.enqueue(Data("0\r\n\r\n".utf8))};self.finished=true;self.pump()}}
 }
 

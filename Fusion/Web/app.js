@@ -38,16 +38,20 @@ const messageMenu=FusionDanmaku.menu({reply:prepareReply,copy:text=>rpc('clipboa
 function prepareReply(message,context){const c=channels[context.source];if(!c||c.epoch!==context.epoch||context.generation!==generation)throw Error('原直播间已改变，请点击当前房间的新弹幕');replyDraft={context:{...context},suffix:'@'+message.user+'：'+message.text};$('target').value=context.source;$('message').value=replyDraft.suffix;$('settings').hidden=true;wake();let hint=$('replyNote');if(!hint){hint=document.createElement('div');hint.id='replyNote';hint.className='reply-note';$('composer').append(hint);}hint.replaceChildren(document.createTextNode('回复 '+context.source+' · '+message.user));const cancel=document.createElement('button');cancel.type='button';cancel.textContent='×';cancel.setAttribute('aria-label','取消回复');cancel.onclick=()=>{if(replyDraft&&$('message').value.endsWith(replyDraft.suffix))$('message').value=$('message').value.slice(0,-replyDraft.suffix.length);replyDraft=null;hint.hidden=true;};hint.append(cancel);hint.hidden=false;requestAnimationFrame(()=>{$('message').focus({preventScroll:true});$('message').setSelectionRange(0,0);});notice('在 @引用前输入回复；尚未发送，完整文字长度按平台检查。');}
 function messageContext(source){const c=channels[source];return {source,platform:c?.room?.platform||'bilibili',room:String(c?.room?.room||''),epoch:c?.epoch,generation};}
 function refreshBulletGroup(b){const old=b.group.members[0]?.key;if(!b.group.filter((m,c)=>!blocked(m,c.source)))return false;if(old!==b.group.members[0]?.key)b.el.querySelector(".username")?.remove();b.source=b.group.members[0].context.source;if(b.badge)FusionDanmaku.badge(b.badge,b.group);return true;}
-async function setupVoiceMode(){try{const mode=await rpc('voiceMode');aiVoiceMode=mode?.ai===true;voiceFeature(aiVoiceMode);if(!aiVoiceMode)return;document.querySelector('h1 small').textContent='AI 去人声 0.4.3';$('voiceModeLabel').textContent='A AI 去人声开关（本机）';$('voiceModeHint').textContent='GTCRN 轻量语音模型与突发大声上限：从原声中减去模型估计的人声。仅处理 A 的 HLS/TS/AAC，B/C 不变；FLV / 分片 MP4 不处理，需要手动选可用的 TS 线路。会损伤部分游戏声音；处理后续片段，不上传音频、不自动刷新。';$('voiceStatus').textContent='AI 默认关闭。强度 0% 等同关闭，后续片段直接保留原声、不运行模型。开关与0–100%强度会记住；已缓冲的音频需先播完，不自动刷新。开启后可先用100%试听。';}catch{voiceFeature(false);}}
+async function setupVoiceMode(){try{const mode=await rpc('voiceMode');aiVoiceMode=mode?.ai===true;voiceFeature(aiVoiceMode);if(!aiVoiceMode)return;document.querySelector('h1 small').textContent='AI 去人声 0.4.7';$('voiceModeLabel').textContent='A AI 去人声开关（本机）';$('voiceModeHint').textContent='GTCRN 轻量语音模型与突发大声上限：从原声中减去模型估计的人声。仅处理 A 的 HLS/TS/AAC，B/C 不变；FLV / 分片 MP4 不处理，需要手动选可用的 TS 线路。会损伤部分游戏声音；处理后续片段，不上传音频、不自动刷新。';$('voiceStatus').textContent='AI 默认关闭。强度 0% 等同关闭，后续片段直接保留原声、不运行模型。开关与0–100%强度会记住；已缓冲的音频需先播完，不自动刷新。开启后可先用100%试听。';}catch{voiceFeature(false);}}
 async function applyVoice(){voiceFailure='';if(!aiVoiceMode){$('voiceA').checked=false;return;}const strength=$('voiceA').checked?Number($('voiceStrength').value)/100:0;$('voiceStrengthValue').textContent=$('voiceStrength').value+'%';try{const c=channels.A;if(c?.media.webMode){c.voice?.close?.();$('voiceStatus').textContent='此 FLV 线路未经过 AI 模型，保留原声音；请手动选择 HLS/TS，不会自动换线。';return;}await rpc('mediaVoice',{strength});}catch(e){voiceFailure='当前未处理，保持原声音：'+e.message;$('voiceStatus').textContent=voiceFailure;notice(e.message,true);}}
 window.__fusionVoiceStatus=value=>{if(voiceFailure){$('voiceStatus').textContent=voiceFailure;return;}if(channels.A?.media.webMode)return;if(!$('voiceA').checked){$('voiceStatus').textContent='已关闭，保留 A 原声音';return;}if($('voiceA').checked)$('voiceStatus').textContent=value+(aiVoiceMode?'。仅本机处理 A 的后续 TS/AAC 片段（单声道/立体声），不改 B；未支持格式保留原声。':'。只处理后续未缓存的 TS/AAC 片段，单声道和不支持的格式保留原声音。');};
 function voiceFeature(enabled){if(enabled||$('removedLegacyVoice'))return;const hint=$('voiceModeHint')||$('voiceStrength').closest('label').nextElementSibling;const hidden=document.createElement('div');hidden.hidden=true;hidden.id='removedLegacyVoice';document.body.append(hidden);for(const node of [$('voiceA').closest('label'),$('voiceStrength').closest('label'),$('voiceApply'),hint,$('voiceStatus')])if(node)hidden.append(node);$('voiceA').checked=false;$('voiceStrength').value='0';}
 const blockButton=document.createElement('button');blockButton.id='blockingSettings';blockButton.textContent='用户 / 关键词屏蔽';blockButton.onclick=()=>blockPanel.open();
 $('settings').append(blockButton);
 window.openBlocking=()=>blockPanel.open();
+let pendingNetworkStart=null;
+function networkStartIdentity(){return JSON.stringify([generation,...SOURCES.map(s=>[$('enabled'+s).checked,$('room'+s).value,$('platform'+s).value])]);}
+const networkCompat=FusionNetworkCompat.mount({rpc,active:source=>source==='起播'?(pendingNetworkStart?.identity===networkStartIdentity()?pendingNetworkStart:null):channels[source],refresh:async(source,channel)=>{if(source==='起播'){if(pendingNetworkStart===channel&&channel.identity===networkStartIdentity())await connect();}else if(channels[source]===channel)await changeQuality(source,true);},settings:$('settings'),stage});
+let scLifetimeConfig=C.scLifetime();
 const ids=['enabledA','enabledB','enabledC','audioOnlyA','audioOnlyC','volumeC','chatC','scC','platformC','backgroundMode','screenOrientation','voiceA','voiceStrength','volumeA','volumeB','size','chatSpeed','opacity','font','color','marker','chatA','chatB','scA','scB','user','original','chatArea','maxRows','audioOnlyB','nonOverlap','mergeSame','scDraggable','pipRows','pipSize','pipUser','platformA','platformB'];
 function save(){
-  const config={roomA:$('roomA').value,roomB:$('roomB').value,roomC:$('roomC').value,shareOffsets:SOURCES.map(s=>preferredOffsets[s]),timeOffsets:{...preferredOffsets}};
+  const config={scLifetime:C.scLifetime(scLifetimeConfig),roomA:$('roomA').value,roomB:$('roomB').value,roomC:$('roomC').value,shareOffsets:SOURCES.map(s=>preferredOffsets[s]),timeOffsets:{...preferredOffsets}};
   for(const id of ids)config[id]=$(id).type==='checkbox'?$(id).checked:$(id).value;
   config.qualityC=qualityChoices.C;config.delayC=preferredDelays.C;config.qualityA=qualityChoices.A;config.qualityB=qualityChoices.B;config.delayA=preferredDelays.A;config.delayB=preferredDelays.B;config.dual=document.body.classList.contains('dual');
   window.cleanView?.preserve(config);
@@ -55,6 +59,7 @@ function save(){
 }
 try{
   const conf=JSON.parse(localStorage.getItem('fusion-mobile-v1')||'{}');
+  scLifetimeConfig=C.scLifetime(conf.scLifetime);
   preferredDual=conf.dual===true;shareOffsets=Array.isArray(conf.shareOffsets)&&conf.shareOffsets.length===3?conf.shareOffsets:null;
   for(const source of SOURCES){preferredDelays[source]=C.clamp(Number(conf['delay'+source])||0,0,60);$('delay'+source).value=preferredDelays[source];$('delay'+source+'Value').textContent=preferredDelays[source].toFixed(1)+'s';}
   for(const s of SOURCES)qualityChoices[s]=Number.isInteger(conf['quality'+s])&&conf['quality'+s]>=0&&conf['quality'+s]<=100000?conf['quality'+s]:0;
@@ -62,6 +67,9 @@ try{
     const e=$(id);if(e.type==='checkbox')e.checked=!!conf[id];else e.value=conf[id];
   }
 }catch{}
+const scLifetimePanel=document.createElement('section');scLifetimePanel.id='scLifetimeSettings';$('settings').append(scLifetimePanel);
+window.FusionSCLifetime={get:()=>C.scLifetime(scLifetimeConfig)};
+FusionSCLifetimeUI.mount(scLifetimePanel,scLifetimeConfig,async value=>{await rpc('pipSettings',{...pipSettings(),scLifetime:value});scLifetimeConfig=value;save();});
 // Migrate saved actual delays, preserving a previous imported signed reference when valid.
 try{const conf=JSON.parse(localStorage.getItem('fusion-mobile-v1')||'{}'),saved=conf.timeOffsets||(shareOffsets?Object.fromEntries(SOURCES.map((s,i)=>[s,Number(shareOffsets[i])])):preferredDelays);const enabled=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked]));const actual=FusionOffsets.normalize(saved,enabled);if(SOURCES.every(s=>!enabled[s]||Math.abs(actual[s]-preferredDelays[s])<.01))Object.assign(preferredOffsets,saved);else Object.assign(preferredOffsets,preferredDelays);}catch{Object.assign(preferredOffsets,preferredDelays);}
 let acceptedOffsetSources=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked]));
@@ -250,12 +258,12 @@ async function changeQuality(source,force=false){
     c.qualityBusy=false;c.room=room;c.index=0;c.epoch=generation+'-'+source+'-'+Date.now();c.suspended=!foreground;
     qualityChoices[source]=wanted;save();clearSourceBullets(source);c.open();void messages(c);
     notice(source+' 清晰度正在切换，保留该路设置的额外延迟；另一路继续播放，请重新核对同步。');
-  }catch(e){if(active()){c.qualityBusy=false;renderQuality(c);$('quality'+source+'State').textContent='切换失败：'+e.message+'；原直播未停止';}}
+  }catch(e){if(active()){c.qualityBusy=false;renderQuality(c);$('quality'+source+'State').textContent='切换失败：'+e.message+'；原直播未停止';networkCompat.offer(source,e.message,c);}}
 }
 class Channel{
   constructor(source,room,epoch){
     this.source=source;this.room=room;this.epoch=epoch;this.media=new IOSMedia(source,rpc);this.timeline=new C.Timeline();this.book=new C.EmojiBook();
-    this.receivedChats=0;this.displayedChats=0;this.countedMessages=new WeakSet();this.index=0;this.closed=false;this.delay=0;this.holdUntil=0;this.started=false;this.pending=[];this.lastEnd=0;this.endAt=performance.now();this.lastMediaTime=0;this.chatState='消息准备中';
+    this.receivedChats=0;this.displayedChats=0;this.countedMessages=new WeakSet();this.index=0;this.closed=false;this.delay=0;this.holdUntil=0;this.started=false;this.pending=[];this.lastEnd=0;this.endAt=performance.now();this.lastMediaTime=0;this.chatState='消息准备中';this.lastMediaFailure='';
     this.media.onwaiting=()=>this.renderStatus('正在缓冲');
     this.media.onplaying=()=>this.playing();
     this.media.onerror=error=>this.fallback(error?.message);
@@ -263,20 +271,23 @@ class Channel{
     this.media.onseekerror=e=>{this.holdUntil=0;this.renderStatus('跳转未完成，请点继续或重新调整');notice(this.source+' 延迟调整失败：'+e.message,true);};
   }
   playing(){
-    this.started=true;this.media.style.visibility='visible';
+    this.lastMediaFailure='';networkCompat.clear(this.source);this.started=true;this.media.style.visibility='visible';
     const target=this.restoreDelayPending;this.restoreDelayPending=null;
     if(target>0)this.applyDelay(target);
     this.renderStatus();renderQuality(this);
   }
   renderStatus(playing=''){
     if(this.closed)return;
+    if(this.lastMediaFailure)playing=this.lastMediaFailure;
     if(!playing)playing=this.holdUntil>performance.now()?'正在积累 '+this.delay.toFixed(1)+'s 延迟':this.media.paused?'已暂停':this.media.waiting?'正在缓冲，等待原线路数据':'播放中';
     $('status'+this.source).textContent=playing+' · '+this.chatState;
   }
   open(){
     window.FusionVideoZoom?.reset(this.source);
     if(this.closed)return;
-    this.switching=true;this.destroyEngine();this.switching=false;this.started=false;this.lastEnd=0;this.pending=[];this.timeline=new C.Timeline();this.holdUntil=0;this.delay=0;this.restoreDelayPending=preferredDelays[this.source];
+    this.lastMediaFailure='';networkCompat.clear(this.source);
+    this.timeline.restartMedia(this.media.currentTime);this.pending=this.pending.filter(m=>m.type==='sc');
+    this.switching=true;this.destroyEngine();this.switching=false;this.started=false;this.lastEnd=0;this.holdUntil=0;this.delay=0;this.restoreDelayPending=preferredDelays[this.source];
     renderOffsets();
     const source=this.room.sources[this.index];
     renderQuality(this);
@@ -309,7 +320,7 @@ class Channel{
   }
   fallback(reason){
     if(this.closed||this.retry||this.switching)return;
-    this.media.pause();this.renderStatus(reason||'播放中断，请手动重新获取画质');notice(this.source+' 播放停止，未自动重连或切换线路。'+(reason?' '+reason:''),true);
+    this.lastMediaFailure=reason||'播放中断，请手动重新获取画质';networkCompat.offer(this.source,reason,this);this.media.pause();this.renderStatus(reason||'播放中断，请手动重新获取画质');notice(this.source+' 播放停止，未自动重连或切换线路。'+(reason?' '+reason:''),true);
   }
   edge(now){
     const r=ranges(this.media);if(!r.length)return null;
@@ -318,7 +329,7 @@ class Channel{
   }
   messageAt(now){return this.started&&this.media.readyState>=2?C.messageTime(this.media.currentTime,this.delay,Math.max(0,(this.holdUntil-now)/1000)):null;}
   accept(packet){
-    const m=C.normalize(packet,this.book);if(!m)return;if(m.type==='chat')this.receivedChats++;
+    const m=C.normalize(packet,this.book,Date.now(),scLifetimeConfig);if(!m)return;if(m.type==='chat')this.receivedChats++;
     m.platform=this.room.platform||'bilibili';
     if(blocked(m,this.source))return;
     if(m.type==='delete'){this.timeline.add(m,0);return;}
@@ -334,13 +345,13 @@ class Channel{
     if(foreground&&this.media.paused&&edge!==null&&edge-this.media.currentTime>75&&this.room.sources[this.index]?.type==='flv'){
       this.suspend();notice(this.source+' 暂停后的缓冲已达上限，已停止下载；点击继续可重新连接。');return;
     }
-    const at=this.messageAt(now);if(at!==null&&this.pending.length){for(const m of this.pending)this.timeline.add(m,at);this.pending=[];}
+    const at=this.messageAt(now);if(at!==null)this.timeline.resumeCards(at);if(at!==null&&this.pending.length){for(const m of this.pending)this.timeline.add(m,at);this.pending=[];}
     if(this.holdUntil&&now>=this.holdUntil){this.holdUntil=0;this.play();}
     if(manualPaused||!foreground||this.media.paused||this.media.seeking||this.media.readyState<3)return;
     this.lastMediaTime=this.media.currentTime;
     for(const m of this.timeline.drain(this.media.currentTime)){addHistory(m,this.source);addBullet(m,this.source,now);}
   }
-  close(){this.closed=true;this.media.onwaiting=this.media.onplaying=this.media.onerror=null;this.destroyEngine();}
+  close(){networkCompat.clear(this.source);this.closed=true;this.media.onwaiting=this.media.onplaying=this.media.onerror=null;this.destroyEngine();}
 }
 window.liveEvent=(source,epoch,event)=>{
   const c=channels[source];if(!c||c.epoch!==epoch||c.closed)return;
@@ -355,9 +366,10 @@ async function messages(c){
     if(active())for(const m of (data.super_chat_info?.message_list||[]))c.accept({cmd:'SUPER_CHAT_MESSAGE',data:m});
   }).catch(e=>{if(active())notice(c.source+' 房间历史 SC 暂不可用（'+e.message+'）。实时弹幕 / SC 请看连接状态；可在官方页面登录验证后重连。');});
   }
-  try{await rpc('startChat',{source:c.source,epoch:c.epoch,room:String(c.room.room),title:c.room.title,platform:c.room.platform||'bilibili'});}catch(e){if(active()){c.chatState=e.message;c.renderStatus();}}
+  try{await rpc('startChat',{source:c.source,epoch:c.epoch,room:String(c.room.room),title:c.room.title,platform:c.room.platform||'bilibili',scLifetime:scLifetimeConfig});}catch(e){if(active()){c.chatState=e.message;c.renderStatus();}}
 }
 function stop(){
+  pendingNetworkStart=null;networkCompat.clear('起播');
   window.cleanView?.exit({restoreMedia:false});
   void rpc('pipStop').catch(()=>{});pipEnabled=false;
   generation++;
@@ -381,7 +393,7 @@ async function connect(){
     $('placeholder').hidden=true;$('pause').disabled=$('live').disabled=$('stop').disabled=false;
     for(const c of Object.values(channels))void messages(c);updatePlaybackService();
     notice('直播流已获取。消息连接状态见下方；必要时先在官方页面完成登录验证。');
-  }catch(e){if(gen===generation){stop();notice(e.message,true);}}
+  }catch(e){if(gen===generation){stop();notice(e.message,true);pendingNetworkStart={identity:networkStartIdentity()};networkCompat.offer('起播',e.message,pendingNetworkStart);}}
   finally{$('connect').disabled=false;}
 }
 function createCard(m){
@@ -390,7 +402,7 @@ function createCard(m){
   if(m.avatar){const img=document.createElement('img');img.src=m.avatar;img.alt='';img.referrerPolicy='no-referrer';img.onerror=()=>img.remove();head.append(img);}
   if($('marker').value!=='none'){const tag=document.createElement('span');tag.className='source-dot '+m.source;head.append(tag);}
   const name=document.createElement('strong');name.textContent=m.user;const price=document.createElement('small');price.textContent='¥ '+m.price;
-  const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','关闭醒目留言');close.onclick=e=>{e.stopPropagation();channels[m.source]?.timeline.dismiss(m.id);renderCards();};
+  const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','关闭醒目留言');close.onclick=e=>{e.stopPropagation();channels[m.source]?.timeline.dismiss(m.id);if(m.source==='B')void rpc('pipDismissSC',{room:String(channels.B?.room?.room||''),id:m.id}).catch(e=>notice(e.message,true));renderCards();};
   head.append(name,price,close);const body=document.createElement('div');body.className='sc-body';appendContent(body,m);
   const time=document.createElement('div');time.className='sc-time';const progress=document.createElement('div');progress.className='sc-progress';
   el.append(head,body,time,progress);return {el,time,progress};
@@ -540,7 +552,7 @@ stage.addEventListener('click',e=>{
 $('historyClear').onclick=()=>{$('history').replaceChildren();historyCount=0;};
 $('reconnect').onclick=()=>{for(const c of Object.values(channels))void messages(c);};
 $('verify').onclick=()=>{const c=channels[$('target').value];if(!c){notice('请先连接直播间',true);return;}rpc('verify',{room:String(c.room.room),platform:c.room.platform||'bilibili',source:c.source}).catch(e=>notice(e.message,true));};
-function pipSettings(){return {mergeSame:$('mergeSame').checked,rows:Number($('pipRows').value),size:Number($('pipSize').value),user:$('pipUser').checked,chat:$('chatB').checked,sc:$('scB').checked};}
+function pipSettings(){return {scLifetime:C.scLifetime(scLifetimeConfig),mergeSame:$('mergeSame').checked,rows:Number($('pipRows').value),size:Number($('pipSize').value),user:$('pipUser').checked,chat:$('chatB').checked,sc:$('scB').checked};}
 window.pipState=(state,detail)=>{
   pipEnabled=state==='starting'||state==='active';pipBusy=state==='starting';
   $('pip').disabled=$('pipSettingsToggle').disabled=pipBusy;

@@ -75,7 +75,20 @@ function cleanSegments(input){
   }
   return result;
 }
-function normalize(packet,book=new EmojiBook(),now=Date.now()){
+const SC_TIERS=['30','50','100','500','1000','2000'];
+function scLifetime(value){
+  const v=object(value),seconds=x=>typeof x==='number'&&Number.isInteger(x)&&x>=1&&x<=7200;
+  return {mode:['official','tiers','uniform'].includes(v.mode)?v.mode:'official',uniformSeconds:seconds(v.uniformSeconds)?v.uniformSeconds:60,
+    tiers:Object.fromEntries(SC_TIERS.map(key=>[key,seconds(v.tiers?.[key])?v.tiers[key]:null]))};
+}
+function scLifetimeDuration(price,remaining,total,policy){
+  const p=scLifetime(policy);let selected=null;
+  if(p.mode==='uniform')selected=p.uniformSeconds;
+  else if(p.mode==='tiers'){const tier=SC_TIERS.slice().reverse().find(k=>price>=Number(k));if(tier)selected=p.tiers[tier];}
+  if(selected===null)return {duration:remaining,totalDuration:total};
+  return {duration:Math.max(0,selected-Math.max(0,total-remaining)),totalDuration:selected};
+}
+function normalize(packet,book=new EmojiBook(),now=Date.now(),policy){
   const cmd=String(packet?.cmd||'').split(':')[0],d=object(packet?.data);
   if(cmd==='DANMU_MSG'){
     const info=packet.info;if(!Array.isArray(info))return null;
@@ -89,19 +102,21 @@ function normalize(packet,book=new EmojiBook(),now=Date.now()){
     const expiry=Number(d.end_time)*1000,remaining=expiry>0?clamp((expiry-now)/1000,0,total):total;
     if(remaining<=0)return null;
     return {type:'sc',id,text:string(d.message),user:string(d.user_info?.uname||d.uname),uid:string(d.uid),
-      avatar:imageUrl(d.user_info?.face),price:clamp(d.price,0,10000000),duration:remaining,totalDuration:total,
+      avatar:imageUrl(d.user_info?.face),price:clamp(d.price,0,10000000),...scLifetimeDuration(clamp(d.price,0,10000000),remaining,total,policy),
       segments:book.segments(string(d.message)),received:now};
   }
   if(cmd==='SUPER_CHAT_MESSAGE_DELETE')return {type:'delete',ids:(Array.isArray(d.ids)?d.ids:[]).slice(0,1000).map(String)};
   return null;
 }
 class Timeline{
-  constructor(){this.items=[];this.sc=new Map();this.deleted=new Set();this.serial=0;this.closed=new Set();this.cursor=0;}
+  constructor(){this.items=[];this.sc=new Map();this.deleted=new Set();this.serial=0;this.closed=new Set();this.seenSC=new Set();this.cursor=0;}
   add(event,at){
     if(!event||!Number.isFinite(at))return;
     if(event.type==='delete'){for(const id of event.ids){this.deleted.add(id);this.sc.delete(id);}while(this.deleted.size>2000)this.deleted.delete(this.deleted.values().next().value);return;}
     if(event.type==='sc'){
-      if(this.deleted.has(event.id)||this.sc.has(event.id))return;
+      if(this.deleted.has(event.id)||this.closed.has(event.id)||this.seenSC.has(event.id))return;
+      this.seenSC.add(event.id);while(this.seenSC.size>2000)this.seenSC.delete(this.seenSC.values().next().value);
+      if(event.duration<=0)return;
       this.sc.set(event.id,{...event,at});while(this.sc.size>200)this.sc.delete(this.sc.keys().next().value);return;
     }
     this.items.push({...event,at,serial:++this.serial});
@@ -116,12 +131,19 @@ class Timeline{
   cards(time){
     const out=[];
     for(const [id,m] of this.sc){
+      if(m.at<0)continue;
       if(time-m.at>m.duration+45){this.sc.delete(id);this.closed.delete(id);continue;}
       if(!this.closed.has(id)&&time>=m.at&&time<m.at+m.duration)out.push({...m,left:m.at+m.duration-time,fraction:clamp((m.at+m.duration-time)/m.totalDuration,0,1)});
     }
     return out;
   }
-  dismiss(id){this.closed.add(id);}
+  restartMedia(previousTime){
+    this.items=[];this.cursor=this.serial;
+    for(const [id,m] of this.sc){const elapsed=m.at>=0&&Number.isFinite(previousTime)?Math.max(0,previousTime-m.at):0;
+      m.duration=Math.max(0,m.duration-elapsed);m.at=-1;if(m.duration<=0)this.sc.delete(id);}
+  }
+  resumeCards(time){for(const m of this.sc.values())if(m.at<0)m.at=time;}
+  dismiss(id){this.closed.add(id);while(this.closed.size>2000)this.closed.delete(this.closed.values().next().value);}
 }
 // One shared lane scheduler for both rooms, using identical pixels/second.
 class Lanes{
@@ -195,6 +217,6 @@ async function sendBatch(targets,send,{active=()=>true,wait=ms=>new Promise(r=>s
   }
   return results;
 }
-const api={clamp,imageUrl,roomImageUrl,EmojiBook,cleanSegments,normalize,Timeline,Lanes,delayAction,messageTime,laneCount,laneLayout,sendBatch};
+const api={clamp,imageUrl,roomImageUrl,scLifetime,scLifetimeDuration,EmojiBook,cleanSegments,normalize,Timeline,Lanes,delayAction,messageTime,laneCount,laneLayout,sendBatch};
 if(typeof module!=='undefined')module.exports=api;else root.FusionCore=api;
 })(globalThis);

@@ -32,7 +32,13 @@ import WebKit
             req.httpMethod = "POST"; req.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
             req.httpBody = Data(body.keys.sorted().map { Safety.encoded($0) + "=" + Safety.encoded(body[$0]!) }.joined(separator: "&").utf8)
         }
-        let (bytes, response) = try await fetch(req)
+        let bytes: Data, response: HTTPURLResponse
+        do { (bytes,response) = try await fetch(req) }
+        catch {
+            // Keep POST result handling at send(); never retry after an unknown submission.
+            if body != nil { throw error }
+            throw FusionError(MediaProxy.networkDetail(error,url:url,stage:"B站接口"))
+        }
         guard response.statusCode == 200 else { throw FusionError("B站接口 HTTP \(response.statusCode)") }
         guard let result = try JSONSerialization.jsonObject(with: bytes) as? JSON else { throw FusionError("B站响应格式发生变化") }
         return result

@@ -25,7 +25,15 @@ import Network
         guard owners.values.contains(owner) else { return }
         failures[owner] = (Date(), message)
     }
-    nonisolated static func networkDetail(_ error: Error) -> String {
+    struct RequestFailure: Error {
+        let underlying: Error
+        let url: URL?
+        let stage: String
+    }
+    nonisolated static func networkDetail(_ error: Error, url: URL? = nil, stage: String = "") -> String {
+        if let failure=error as? RequestFailure {
+            return networkDetail(failure.underlying,url:failure.url,stage:failure.stage)
+        }
         let failure = error as NSError
         guard failure.domain == NSURLErrorDomain else { return "媒体请求失败" }
         let detail: String
@@ -38,14 +46,21 @@ import Network
             detail = "直播线路安全连接失败"
         default: detail = "直播线路请求失败"
         }
-        return "\(detail)（\(failure.code)）"
+        // Deliberately omit path/query, which can contain signed playback tokens.
+        let host=url?.host ?? ""
+        return "\(detail)（\(failure.code)）" + (host.isEmpty ? "":" · 域名：\(host)") + (stage.isEmpty ? "":" · 阶段：\(stage)")
     }
-    private func fetchMedia(_ original: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
+    func fetchMedia(_ original: URLRequest, limit: Int) async throws -> (Data, HTTPURLResponse) {
         var request = original
         var visited = Set<URL>()
         if let url = original.url { visited.insert(url) }
         for count in 0...3 {
-            let result = try await fetch(request, limit)
+            let result: (Data, HTTPURLResponse)
+            do { result = try await fetch(request, limit) }
+            catch {
+                let kind=request.url?.path.lowercased().hasSuffix(".m3u8") == true ? "播放列表":"媒体片段"
+                throw RequestFailure(underlying:error,url:request.url,stage:count > 0 ? "重定向后的\(kind)":kind)
+            }
             let response = result.1
             guard [301, 302, 303, 307, 308].contains(response.statusCode) else { return result }
             let target = response.value(forHTTPHeaderField: "Location").flatMap {
