@@ -333,6 +333,12 @@ import WebKit
         present(nav, animated: true)
     }
     private func layout(_ args: JSON) {
+        // Keep the WKWebView viewport fixed while the per-player gesture controls its video layer.
+        let videoZoomOnly = args["videoZoomOnly"] as? Bool ?? false
+        if let pinch = web.scrollView.pinchGestureRecognizer, pinch.isEnabled == videoZoomOnly {
+            if videoZoomOnly && web.scrollView.zoomScale != 1 { web.scrollView.setZoomScale(1, animated: false) }
+            pinch.isEnabled = !videoZoomOnly
+        }
         for source in ["A","B","C"] {
             let d = args.obj(source)
             func number(_ key: String) -> CGFloat { CGFloat((d[key] as? NSNumber)?.doubleValue ?? 0) }

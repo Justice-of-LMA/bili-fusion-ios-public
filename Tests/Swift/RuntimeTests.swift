@@ -31,7 +31,7 @@ final class RuntimeTests: XCTestCase {
         throw FusionError("Web runtime test timed out")
     }
     @MainActor func testBundledWebFullscreenControlsAndBridge() async throws {
-        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.4.8" : "0.3.6")
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.4.9" : "0.3.6")
         let web = try appWeb()
         XCTAssertEqual(web.superview?.keyboardLayoutGuide.followsUndockedKeyboard, false)
         try await waitFor(web, "typeof receiveNative === 'function' && !!document.getElementById('full')")
@@ -47,6 +47,10 @@ final class RuntimeTests: XCTestCase {
         try await waitFor(web, "!document.getElementById('settings').hidden")
         _ = try await web.evaluateJavaScript("document.getElementById('settingsClose').click(); document.getElementById('dual').click(); true")
         try await waitFor(web, "document.body.classList.contains('dual')")
+        for _ in 0..<40 where web.scrollView.pinchGestureRecognizer?.isEnabled == true {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTAssertEqual(web.scrollView.pinchGestureRecognizer?.isEnabled, false)
         let target = try await web.evaluateJavaScript("document.getElementById('target').value") as? String
         XCTAssertEqual(target, "B")
         let maxDelay = try await web.evaluateJavaScript("document.getElementById('delayA').max") as? String

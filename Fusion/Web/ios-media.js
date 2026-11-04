@@ -46,6 +46,7 @@ window.iosLayout=()=>{
   requestAnimationFrame(()=>{
     queued=false;const result={};
     for(const s of ['A','B','C']){const rect=document.getElementById('view'+s).getBoundingClientRect();result[s]={x:rect.x,y:rect.y,width:rect.width,height:rect.height,visible:!active.get(s)?.webMode&&rect.width>0&&rect.height>0&&getComputedStyle(document.getElementById('view'+s)).display!=='none'};}
+    result.videoZoomOnly=document.body.classList.contains('dual')&&!document.body.classList.contains('web-layout')&&Number(document.body.dataset.visibleCount)>=2;
     const text=JSON.stringify(result);if(text!==last){last=text;window.Native?.call('0','layout',text);}
   });
 };
