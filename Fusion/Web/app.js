@@ -38,7 +38,7 @@ const messageMenu=FusionDanmaku.menu({reply:prepareReply,copy:text=>rpc('clipboa
 function prepareReply(message,context){const c=channels[context.source];if(!c||c.epoch!==context.epoch||context.generation!==generation)throw Error('原直播间已改变，请点击当前房间的新弹幕');replyDraft={context:{...context},suffix:'@'+message.user+'：'+message.text};$('target').value=context.source;$('message').value=replyDraft.suffix;$('settings').hidden=true;wake();let hint=$('replyNote');if(!hint){hint=document.createElement('div');hint.id='replyNote';hint.className='reply-note';$('composer').append(hint);}hint.replaceChildren(document.createTextNode('回复 '+context.source+' · '+message.user));const cancel=document.createElement('button');cancel.type='button';cancel.textContent='×';cancel.setAttribute('aria-label','取消回复');cancel.onclick=()=>{if(replyDraft&&$('message').value.endsWith(replyDraft.suffix))$('message').value=$('message').value.slice(0,-replyDraft.suffix.length);replyDraft=null;hint.hidden=true;};hint.append(cancel);hint.hidden=false;requestAnimationFrame(()=>{$('message').focus({preventScroll:true});$('message').setSelectionRange(0,0);});notice('在 @引用前输入回复；尚未发送，完整文字长度按平台检查。');}
 function messageContext(source){const c=channels[source];return {source,platform:c?.room?.platform||'bilibili',room:String(c?.room?.room||''),epoch:c?.epoch,generation};}
 function refreshBulletGroup(b){const old=b.group.members[0]?.key;if(!b.group.filter((m,c)=>!blocked(m,c.source)))return false;if(old!==b.group.members[0]?.key)b.el.querySelector(".username")?.remove();b.source=b.group.members[0].context.source;if(b.badge)FusionDanmaku.badge(b.badge,b.group);return true;}
-async function setupVoiceMode(){try{const mode=await rpc('voiceMode');aiVoiceMode=mode?.ai===true;voiceFeature(aiVoiceMode);if(!aiVoiceMode)return;document.querySelector('h1 small').textContent='AI 去人声 0.4.7';$('voiceModeLabel').textContent='A AI 去人声开关（本机）';$('voiceModeHint').textContent='GTCRN 轻量语音模型与突发大声上限：从原声中减去模型估计的人声。仅处理 A 的 HLS/TS/AAC，B/C 不变；FLV / 分片 MP4 不处理，需要手动选可用的 TS 线路。会损伤部分游戏声音；处理后续片段，不上传音频、不自动刷新。';$('voiceStatus').textContent='AI 默认关闭。强度 0% 等同关闭，后续片段直接保留原声、不运行模型。开关与0–100%强度会记住；已缓冲的音频需先播完，不自动刷新。开启后可先用100%试听。';}catch{voiceFeature(false);}}
+async function setupVoiceMode(){try{const mode=await rpc('voiceMode');aiVoiceMode=mode?.ai===true;voiceFeature(aiVoiceMode);if(!aiVoiceMode)return;document.querySelector('h1 small').textContent='AI 去人声 0.4.8';$('voiceModeLabel').textContent='A AI 去人声开关（本机）';$('voiceModeHint').textContent='GTCRN 轻量语音模型与突发大声上限：从原声中减去模型估计的人声。仅处理 A 的 HLS/TS/AAC，B/C 不变；FLV / 分片 MP4 不处理，需要手动选可用的 TS 线路。会损伤部分游戏声音；处理后续片段，不上传音频、不自动刷新。';$('voiceStatus').textContent='AI 默认关闭。强度 0% 等同关闭，后续片段直接保留原声、不运行模型。开关与0–100%强度会记住；已缓冲的音频需先播完，不自动刷新。开启后可先用100%试听。';}catch{voiceFeature(false);}}
 async function applyVoice(){voiceFailure='';if(!aiVoiceMode){$('voiceA').checked=false;return;}const strength=$('voiceA').checked?Number($('voiceStrength').value)/100:0;$('voiceStrengthValue').textContent=$('voiceStrength').value+'%';try{const c=channels.A;if(c?.media.webMode){c.voice?.close?.();$('voiceStatus').textContent='此 FLV 线路未经过 AI 模型，保留原声音；请手动选择 HLS/TS，不会自动换线。';return;}await rpc('mediaVoice',{strength});}catch(e){voiceFailure='当前未处理，保持原声音：'+e.message;$('voiceStatus').textContent=voiceFailure;notice(e.message,true);}}
 window.__fusionVoiceStatus=value=>{if(voiceFailure){$('voiceStatus').textContent=voiceFailure;return;}if(channels.A?.media.webMode)return;if(!$('voiceA').checked){$('voiceStatus').textContent='已关闭，保留 A 原声音';return;}if($('voiceA').checked)$('voiceStatus').textContent=value+(aiVoiceMode?'。仅本机处理 A 的后续 TS/AAC 片段（单声道/立体声），不改 B；未支持格式保留原声。':'。只处理后续未缓存的 TS/AAC 片段，单声道和不支持的格式保留原声音。');};
 function voiceFeature(enabled){if(enabled||$('removedLegacyVoice'))return;const hint=$('voiceModeHint')||$('voiceStrength').closest('label').nextElementSibling;const hidden=document.createElement('div');hidden.hidden=true;hidden.id='removedLegacyVoice';document.body.append(hidden);for(const node of [$('voiceA').closest('label'),$('voiceStrength').closest('label'),$('voiceApply'),hint,$('voiceStatus')])if(node)hidden.append(node);$('voiceA').checked=false;$('voiceStrength').value='0';}
@@ -48,10 +48,10 @@ window.openBlocking=()=>blockPanel.open();
 let pendingNetworkStart=null;
 function networkStartIdentity(){return JSON.stringify([generation,...SOURCES.map(s=>[$('enabled'+s).checked,$('room'+s).value,$('platform'+s).value])]);}
 const networkCompat=FusionNetworkCompat.mount({rpc,active:source=>source==='起播'?(pendingNetworkStart?.identity===networkStartIdentity()?pendingNetworkStart:null):channels[source],refresh:async(source,channel)=>{if(source==='起播'){if(pendingNetworkStart===channel&&channel.identity===networkStartIdentity())await connect();}else if(channels[source]===channel)await changeQuality(source,true);},settings:$('settings'),stage});
-let scLifetimeConfig=C.scLifetime();
+let scLifetimeConfig=C.scLifetime(),scSize='medium';
 const ids=['enabledA','enabledB','enabledC','audioOnlyA','audioOnlyC','volumeC','chatC','scC','platformC','backgroundMode','screenOrientation','voiceA','voiceStrength','volumeA','volumeB','size','chatSpeed','opacity','font','color','marker','chatA','chatB','scA','scB','user','original','chatArea','maxRows','audioOnlyB','nonOverlap','mergeSame','scDraggable','pipRows','pipSize','pipUser','platformA','platformB'];
 function save(){
-  const config={scLifetime:C.scLifetime(scLifetimeConfig),roomA:$('roomA').value,roomB:$('roomB').value,roomC:$('roomC').value,shareOffsets:SOURCES.map(s=>preferredOffsets[s]),timeOffsets:{...preferredOffsets}};
+  const config={scLifetime:C.scLifetime(scLifetimeConfig),scSize,roomA:$('roomA').value,roomB:$('roomB').value,roomC:$('roomC').value,shareOffsets:SOURCES.map(s=>preferredOffsets[s]),timeOffsets:{...preferredOffsets}};
   for(const id of ids)config[id]=$(id).type==='checkbox'?$(id).checked:$(id).value;
   config.qualityC=qualityChoices.C;config.delayC=preferredDelays.C;config.qualityA=qualityChoices.A;config.qualityB=qualityChoices.B;config.delayA=preferredDelays.A;config.delayB=preferredDelays.B;config.dual=document.body.classList.contains('dual');
   window.cleanView?.preserve(config);
@@ -60,6 +60,7 @@ function save(){
 try{
   const conf=JSON.parse(localStorage.getItem('fusion-mobile-v1')||'{}');
   scLifetimeConfig=C.scLifetime(conf.scLifetime);
+  scSize=conf.scSize;
   preferredDual=conf.dual===true;shareOffsets=Array.isArray(conf.shareOffsets)&&conf.shareOffsets.length===3?conf.shareOffsets:null;
   for(const source of SOURCES){preferredDelays[source]=C.clamp(Number(conf['delay'+source])||0,0,60);$('delay'+source).value=preferredDelays[source];$('delay'+source+'Value').textContent=preferredDelays[source].toFixed(1)+'s';}
   for(const s of SOURCES)qualityChoices[s]=Number.isInteger(conf['quality'+s])&&conf['quality'+s]>=0&&conf['quality'+s]<=100000?conf['quality'+s]:0;
@@ -79,6 +80,13 @@ FusionOffsets.controls(()=>preferredOffsets,applyOffsets);renderOffsets();
 if(!['audio','pause'].includes($('backgroundMode').value))$('backgroundMode').value='audio';
 if(!['auto','portrait','landscape'].includes($('screenOrientation').value))$('screenOrientation').value='auto';
 const scLayout=SCLayout.mount(cardLayer,()=>mainView(),{load:()=>JSON.parse(localStorage.getItem('fusion-ios-sc-position')||'null'),save:p=>localStorage.setItem('fusion-ios-sc-position',JSON.stringify(p)),bottom:()=>Math.min(64,mainView().clientHeight*.13)});
+FusionSCLifetimeUI.mountSize(scLifetimePanel,scSize,value=>{
+  const changed=value!==scSize&&cardLayer.dataset.scSize!==undefined;
+  scSize=value;
+  cardLayer.dataset.scSize=value;
+  scLayout.set(scLayout.get());
+  if(changed)save();
+});
 scLayout.setDraggable($('scDraggable').checked);
 $('scCorner').onchange=()=>scLayout.corner($('scCorner').value);
 function updateLabels(){

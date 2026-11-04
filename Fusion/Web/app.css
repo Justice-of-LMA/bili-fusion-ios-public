@@ -83,3 +83,14 @@ body.video-pip #viewA{inset:0!important;width:100%!important;height:100%!importa
 body.full>header,body.full main>.setup,body.full main>.status,body.full main>#normalHistory,body.full main>details,body.full main>footer{visibility:hidden!important;pointer-events:none!important}
 
 .logo{width:48px;height:48px;flex:0 0 48px;padding:0;background:transparent!important;overflow:hidden}.logo img{width:100%;height:100%;display:block;object-fit:contain}
+
+/* SC size applies to the whole card without changing its countdown. */
+#cards[data-sc-size="small"]{gap:5px}
+#cards[data-sc-size="small"] .sc-head{font-size:10px;padding:3px 5px;gap:4px}
+#cards[data-sc-size="small"] .sc-head img{width:18px;height:18px}
+#cards[data-sc-size="small"] .sc-body{font-size:11px;padding:5px;max-height:66px}
+#cards[data-sc-size="small"] .sc-time{font-size:9px;padding-bottom:3px}
+#cards[data-sc-size="large"] .sc-head{font-size:14px;padding:7px 9px}
+#cards[data-sc-size="large"] .sc-head img{width:30px;height:30px}
+#cards[data-sc-size="large"] .sc-body{font-size:16px;padding:9px;max-height:128px}
+#cards[data-sc-size="large"] .sc-time{font-size:12px}

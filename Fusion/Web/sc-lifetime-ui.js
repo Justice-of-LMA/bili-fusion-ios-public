@@ -17,5 +17,16 @@ function mount(root,initial,changed){
   }catch(e){$('result').textContent=e.message||'设置失败，请重试';}finally{$('apply').disabled=false;}};
  set(current);return {set,get:()=>FusionCore.scLifetime(current)};
 }
-window.FusionSCLifetimeUI={mount};
+function mountSize(root,initial,changed){
+ const label=document.createElement('label');
+ label.append('SC 大小');
+ const select=document.createElement('select');
+ select.setAttribute('aria-label','SC 大小');
+ for(const [value,text] of [['small','小'],['medium','中（默认）'],['large','大']])select.add(new Option(text,value));
+ select.value=['small','large'].includes(initial)?initial:'medium';
+ select.onchange=()=>changed(select.value);
+ label.append(select);root.prepend(label);
+ changed(select.value);
+}
+window.FusionSCLifetimeUI={mount,mountSize};
 })();

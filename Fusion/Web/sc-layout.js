@@ -14,7 +14,10 @@
    function apply(){
      if(disposed)return;
      const anchor=typeof host==='function'?host():host,w=anchor.clientWidth,h=anchor.clientHeight;
-     node.style.width=Math.max(1,Math.min(280,w*.55,w-16))+'px';node.style.maxHeight=Math.max(1,Math.min(h*.5,h-16-bottom()))+'px';
+     const size=node.dataset.scSize;
+     const width=size==='small'?216:size==='large'?370:280;
+     const fraction=size==='small'?.44:size==='large'?.62:.55;
+     node.style.width=Math.max(1,Math.min(width,w*fraction,w-16))+'px';node.style.maxHeight=Math.max(1,Math.min(h*.5,h-16-bottom()))+'px';
      const r=geometry(w,h,node.offsetWidth,node.offsetHeight,value.x,value.y,8,bottom());
      node.style.right='auto';node.style.bottom='auto';node.style.left=r.left+'px';node.style.top=r.top+'px';
    }
