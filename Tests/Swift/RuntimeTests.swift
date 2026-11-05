@@ -31,7 +31,7 @@ final class RuntimeTests: XCTestCase {
         throw FusionError("Web runtime test timed out")
     }
     @MainActor func testBundledWebFullscreenControlsAndBridge() async throws {
-        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.4.9" : "0.3.6")
+        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,VoiceSegment.aiEnabled ? "0.4.10" : "0.3.6")
         let web = try appWeb()
         XCTAssertEqual(web.superview?.keyboardLayoutGuide.followsUndockedKeyboard, false)
         try await waitFor(web, "typeof receiveNative === 'function' && !!document.getElementById('full')")

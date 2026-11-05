@@ -30,7 +30,7 @@ enum WebAssetError: Int, Error, LocalizedError, CustomNSError {
 
 struct WebAssetStore {
     static let paths: Set<String> = [
-        "/app-icon.png", "/send-targets.js", "/time-offsets.js", "/settings-tabs.js", "/settings-tabs.css", "/tv-control.js", "/triple-view.js", "/triple-view.css", "/share-alphabet.js", "/fusion-share.js", "/share-ui.js", "/index.html", "/app.js", "/web-layout.js", "/web-layout.css", "/core.js", "/ios-media.js", "/app.css", "/ios.css", "/sc-layout.js", "/sc-lifetime-ui.js", "/network-compat.js", "/blocking.js", "/blocking-ui.js", "/danmaku-common.js", "/voice-reducer.js", "/voice-worklet.js", "/huya-chat-dom.js", "/official-chat-sender.js", "/vendor/crypto-core.js", "/vendor/crypto-md5.js", "/vendor/crypto-LICENSE.txt", "/vendor/mpegts.js", "/vendor/mpegts-LICENSE.txt",
+        "/stream-formats.js", "/layout-ratio.js", "/layout-ratio.css", "/video-zoom.js", "/app-icon.png", "/send-targets.js", "/time-offsets.js", "/settings-tabs.js", "/settings-tabs.css", "/tv-control.js", "/triple-view.js", "/triple-view.css", "/share-alphabet.js", "/fusion-share.js", "/share-ui.js", "/index.html", "/app.js", "/web-layout.js", "/web-layout.css", "/core.js", "/ios-media.js", "/app.css", "/ios.css", "/sc-layout.js", "/sc-lifetime-ui.js", "/network-compat.js", "/blocking.js", "/blocking-ui.js", "/danmaku-common.js", "/voice-reducer.js", "/voice-worklet.js", "/huya-chat-dom.js", "/official-chat-sender.js", "/vendor/crypto-core.js", "/vendor/crypto-md5.js", "/vendor/crypto-LICENSE.txt", "/vendor/mpegts.js", "/vendor/mpegts-LICENSE.txt",
         "/donate-alipay.jpg", "/donate-wechat.jpg", "/NOTICES.txt", "/vendor/desktop-MIT-notice.txt"
     ]
     static var bundledRoot: URL? {

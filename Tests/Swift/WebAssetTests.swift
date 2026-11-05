@@ -25,6 +25,20 @@ final class WebAssetTests: XCTestCase {
             XCTAssertFalse(asset.mime.isEmpty)
         }
     }
+    func testEveryHomeDependencyUsesTheProductionResourceLoader() throws {
+        let store = WebAssetStore(root: WebAssetStore.bundledRoot)
+        let html = String(decoding: try store.load(home).data, as: UTF8.self)
+        let regex = try NSRegularExpression(pattern: #"<(?:script|link|img)\b[^>]*\b(?:src|href)=["']([^"']+)["']"#)
+        let references = regex.matches(in: html, range: NSRange(html.startIndex..., in: html))
+        XCTAssertGreaterThan(references.count, 20)
+        for match in references {
+            let range = try XCTUnwrap(Range(match.range(at: 1), in: html))
+            let value = String(html[range])
+            if value.hasPrefix("#") || value.hasPrefix("https:") || value.hasPrefix("http:") || value.hasPrefix("data:") { continue }
+            let url = try XCTUnwrap(URL(string: value, relativeTo: home)?.absoluteURL)
+            XCTAssertFalse(try store.load(url).data.isEmpty, value)
+        }
+    }
     func testNormalizedRootFixesOldPrefixMismatch() throws {
         try fixture { _, root in
             // A non-canonical directory alias must not make a valid child look external.
