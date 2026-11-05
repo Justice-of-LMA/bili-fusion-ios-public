@@ -53,7 +53,8 @@ enum PlatformRoom {
     static func douyuRedirect(_ original:URLRequest,to target:URL?,count:Int)->URLRequest? {
         let roots=["douyucdn.cn","douyucdn2.cn","douyuscdn.com","douyuscdn.cn","douyucdn.com","edgesrv.com"]
         guard count<3,let from=original.url,Safety.media(from),let host=from.host,roots.contains(where:{Safety.inDomain(host,$0)}),
-              let target,Safety.media(target),let to=target.host,roots.contains(where:{Safety.inDomain(to,$0)}),
+              // 2561707: Douyu FLV can redirect from douyucdn2.cn to its ByteDance CDN.
+              let target,Safety.media(target),let to=target.host,(roots+["bytefcdnrd.com"]).contains(where:{Safety.inDomain(to,$0)}),
               let method=original.httpMethod,["GET","HEAD"].contains(method) else{return nil}
         var next=URLRequest(url:target,cachePolicy:original.cachePolicy,timeoutInterval:original.timeoutInterval);next.httpMethod=method
         for header in ["User-Agent","Referer","Origin","Range","Accept-Encoding","Cache-Control"]{if let value=original.value(forHTTPHeaderField:header){next.setValue(value,forHTTPHeaderField:header)}}

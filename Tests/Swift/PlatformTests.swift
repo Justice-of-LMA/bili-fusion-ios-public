@@ -1,4 +1,5 @@
 import XCTest
+import Network
 @testable import Fusion
 final class PlatformTests:XCTestCase {
  func testRoomAndOfficialHostValidation()throws {
@@ -76,5 +77,46 @@ final class PlatformTests:XCTestCase {
   for target in ["http://b.douyucdn.cn/a.flv","https://douyucdn.cn.evil.test/a.flv","https://127.0.0.1/a.flv"]{XCTAssertNil(PlatformRoom.douyuRedirect(request,to:URL(string:target),count:0))}
   XCTAssertNil(PlatformRoom.douyuRedirect(request,to:URL(string:"https://b.douyucdn.cn/a.flv"),count:3))
  }
+ func testDouyuFLVBytePipeFollowsObserved2561707CDNRedirect(){
+  let initial=URL(string:"https://huos3a.douyucdn2.cn/live/fixture.flv?sign=fixture")!
+  let target=URL(string:"https://2409_8c44_2_ff03_8000_0_b00_179.bytefcdnrd.com/live/fixture.flv?sign=fixture")!
+  var request=URLRequest(url:initial);request.httpMethod="GET"
+  request.setValue("https://www.douyu.com/",forHTTPHeaderField:"Referer")
+  request.setValue("bytes=0-",forHTTPHeaderField:"Range")
+  request.setValue("private",forHTTPHeaderField:"Cookie")
+  request.setValue("Bearer private",forHTTPHeaderField:"Authorization")
+  let pipe=MediaBytePipe(connection:NWConnection(host:"127.0.0.1",port:9,using:.tcp),request:request)
+  let session=URLSession(configuration:.ephemeral),task=session.dataTask(with:request)
+  defer{session.invalidateAndCancel()}
+  let response=HTTPURLResponse(url:initial,statusCode:302,httpVersion:nil,headerFields:["Location":target.absoluteString])!
+  var next:URLRequest?
+  pipe.urlSession(session,task:task,willPerformHTTPRedirection:response,newRequest:URLRequest(url:target)){next=$0}
+  XCTAssertEqual(next?.url,target,"A real Douyu CDN redirect must not become an HTTP 302 playback failure")
+  XCTAssertEqual(next?.value(forHTTPHeaderField:"Referer"),"https://www.douyu.com/")
+  XCTAssertEqual(next?.value(forHTTPHeaderField:"Range"),"bytes=0-")
+  XCTAssertNil(next?.value(forHTTPHeaderField:"Cookie"));XCTAssertNil(next?.value(forHTTPHeaderField:"Authorization"))
+  for denied in ["http://cdn.bytefcdnrd.com/a.flv","https://bytefcdnrd.com.evil.test/a.flv","https://127.0.0.1/a.flv","https://user@cdn.bytefcdnrd.com/a.flv","https://cdn.bytefcdnrd.com:444/a.flv"]{
+   XCTAssertNil(PlatformRoom.douyuRedirect(request,to:URL(string:denied),count:0))
+  }
+  XCTAssertNil(PlatformRoom.douyuRedirect(request,to:target,count:3))
+  var unrelated=request;unrelated.url=URL(string:"https://cdn.bilivideo.com/a.flv")!
+  XCTAssertNil(PlatformRoom.douyuRedirect(unrelated,to:target,count:0),"This change must stay scoped to a Douyu source")
+ }
+ @MainActor func testDouyuPlaylistRedirectUsesFinalCDNWithoutRetry()async throws{
+  let initial=URL(string:"https://huos3a.douyucdn2.cn/live/fixture.m3u8")!
+  let target=URL(string:"https://cdn.bytefcdnrd.com/live/fixture.m3u8")!
+  var requests=[URLRequest]()
+  let proxy=MediaProxy{request,_ in
+   requests.append(request)
+   if request.url==initial{return(Data(),HTTPURLResponse(url:initial,statusCode:302,httpVersion:nil,headerFields:["Location":target.absoluteString])!)}
+   return(Data("#EXTM3U\n#EXT-X-VERSION:3\n".utf8),HTTPURLResponse(url:target,statusCode:200,httpVersion:nil,headerFields:nil)!)
+  }
+  var request=URLRequest(url:initial);request.httpMethod="GET";request.setValue("https://www.douyu.com/",forHTTPHeaderField:"Referer")
+  let result=try await proxy.fetchMedia(request,limit:8192)
+  XCTAssertEqual(requests.map{$0.url!},[initial,target]);XCTAssertEqual(result.1.url,target)
+  XCTAssertTrue(String(data:result.0,encoding:.utf8)!.hasPrefix("#EXTM3U"))
+  XCTAssertTrue(requests.allSatisfy{$0.value(forHTTPHeaderField:"Cookie")==nil})
+ }
+
 }
 
