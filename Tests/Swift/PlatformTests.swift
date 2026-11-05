@@ -118,5 +118,47 @@ final class PlatformTests:XCTestCase {
   XCTAssertTrue(requests.allSatisfy{$0.value(forHTTPHeaderField:"Cookie")==nil})
  }
 
+ @MainActor func testHuyaHLSAndHEADFollowSharedCDNAndRetainSegmentOrigin()async throws{
+  let initial=URL(string:"https://tx.hls.huya.com/live/fixture.m3u8")!
+  let final=URL(string:"https://2409_8c20_a17_119__85.bytefcdnrd.com/live/fixture.m3u8")!
+  let segment=final.deletingLastPathComponent().appendingPathComponent("segment.ts")
+  var requests=[URLRequest]()
+  let proxy=MediaProxy{request,_ in
+   requests.append(request);let url=request.url!
+   if url==initial{return(Data(),HTTPURLResponse(url:initial,statusCode:302,httpVersion:nil,headerFields:["Location":final.absoluteString])!)}
+   if url==final{return(Data("#EXTM3U\n#EXTINF:1,\nsegment.ts\n".utf8),HTTPURLResponse(url:final,statusCode:200,httpVersion:nil,headerFields:["Content-Type":"application/vnd.apple.mpegurl"])!)}
+   XCTAssertEqual(url,segment)
+   return(Data([1,2,3]),HTTPURLResponse(url:url,statusCode:200,httpVersion:nil,headerFields:nil)!)
+  }
+  try await proxy.start();defer{proxy.stop()}
+  let local=try proxy.register(initial,owner:proxy.begin("B",token:"huya-fixture"))
+  var head=URLRequest(url:local);head.httpMethod="HEAD"
+  let (_,headResponse)=try await URLSession.shared.data(for:head)
+  XCTAssertEqual((headResponse as? HTTPURLResponse)?.statusCode,200)
+  XCTAssertTrue(requests.prefix(2).allSatisfy{$0.httpMethod=="HEAD"},"HEAD must not turn into an unbounded FLV GET")
+  let (playlist,response)=try await URLSession.shared.data(from:local)
+  XCTAssertEqual((response as? HTTPURLResponse)?.statusCode,200)
+  let part=String(decoding:playlist,as:UTF8.self).split(separator:"\n").last!
+  let (data,_)=try await URLSession.shared.data(from:URL(string:String(part))!)
+  XCTAssertEqual(data,Data([1,2,3]))
+  XCTAssertEqual(requests.count,5,"Only the requested redirect chains and segment may be fetched")
+  XCTAssertTrue(requests.allSatisfy{$0.value(forHTTPHeaderField:"Referer")=="https://www.huya.com/"})
+  XCTAssertTrue(requests.allSatisfy{$0.value(forHTTPHeaderField:"User-Agent")?.hasPrefix("HYSDK")==true})
+ }
+ @MainActor func testSharedCDNSegmentDoesNotMixDouyuAndBiliHeaders()async throws{
+  let shared=URL(string:"https://cdn.bytefcdnrd.com/live/shared.ts")!
+  var referers=[String]()
+  let proxy=MediaProxy{request,_ in
+   referers.append(request.value(forHTTPHeaderField:"Referer") ?? "")
+   return(Data([1,2,3]),HTTPURLResponse(url:request.url!,statusCode:200,httpVersion:nil,headerFields:nil)!)
+  }
+  try await proxy.start();defer{proxy.stop()}
+  let a=try proxy.register(shared,owner:"same-fixture",platform:"bilibili")
+  let b=try proxy.register(shared,owner:"same-fixture",platform:"douyu")
+  XCTAssertNotEqual(a,b,"A shared CDN URL must not merge platform-specific request contexts")
+  _ = try await URLSession.shared.data(from:a);_ = try await URLSession.shared.data(from:b)
+  XCTAssertEqual(referers,["https://live.bilibili.com/","https://www.douyu.com/"])
+ }
+
 }
 

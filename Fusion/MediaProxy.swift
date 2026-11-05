@@ -10,7 +10,7 @@ import Network
     private let secret = UUID().uuidString
     private var listener: NWListener?
     private var port: UInt16 = 0
-    private var urls = [String: (URL, Date, String)]()
+    private var urls = [String: (URL, Date, String, String)]()
     private var failures = [String: (Date, String)]()
     private var voice = [String: Float](), voiceStatus = [String: String](), fragmented = Set<String>(), owners=[String:String]()
     func begin(_ source:String,token:String)->String{let owner=source+":"+token;if let old=owners[source]{voice.removeValue(forKey:old);voiceStatus.removeValue(forKey:old);fragmented.remove(old);failures.removeValue(forKey:old)};owners[source]=owner;voice[owner]=voice[source] ?? 0;return owner}
@@ -67,7 +67,7 @@ import Network
                 URL(string: $0, relativeTo: request.url)?.absoluteURL
             }
             guard let target, visited.insert(target).inserted,
-                  let next = Safety.biliMediaRedirect(original, to: target, count: count) ?? PlatformRoom.douyuRedirect(original,to:target,count:count) else {
+                  let next = Safety.biliMediaRedirect(original, to: target, count: count) ?? PlatformRoom.douyuRedirect(original,to:target,count:count) ?? PlatformRoom.huyaRedirect(original,to:target,count:count) else {
                 throw FusionError("直播线路重定向不可用（HTTP \(response.statusCode)）")
             }
             request = next
@@ -132,13 +132,21 @@ import Network
         }
         for waiter in waiters { waiter.resume(with: result) }
     }
-    func register(_ url: URL, owner: String = "") throws -> URL {
-        guard Safety.media(url), port > 0 else { throw FusionError("不允许的直播线路") }
-        if let id = reverse[owner+"|"+url.absoluteString] { urls[id] = (url, Date(), owner); return local(id) }
+    private static func mediaPlatform(_ url:URL)->String {
+        let host=url.host ?? ""
+        if ["huya.com","msstatic.com","tbcache.com"].contains(where:{Safety.inDomain(host,$0)}) {return "huya"}
+        if ["douyucdn.cn","douyucdn2.cn","douyuscdn.com","douyuscdn.cn","douyucdn.com","edgesrv.com"].contains(where:{Safety.inDomain(host,$0)}) {return "douyu"}
+        return "bilibili"
+    }
+    func register(_ url: URL, owner: String = "", platform:String? = nil) throws -> URL {
+        let origin=platform ?? Self.mediaPlatform(url)
+        guard Safety.media(url), port > 0, ["bilibili","huya","douyu"].contains(origin) else { throw FusionError("不允许的直播线路") }
+        let key=owner+"|"+origin+"|"+url.absoluteString
+        if let id = reverse[key] { urls[id] = (url, Date(), owner, origin); return local(id) }
         if urls.count >= 4096 {
-            for (id, entry) in urls.sorted(by: { $0.value.1 < $1.value.1 }).prefix(512) { urls.removeValue(forKey: id); reverse.removeValue(forKey: entry.2+"|"+entry.0.absoluteString) }
+            for (id, entry) in urls.sorted(by: { $0.value.1 < $1.value.1 }).prefix(512) { urls.removeValue(forKey: id); reverse.removeValue(forKey: entry.2+"|"+entry.3+"|"+entry.0.absoluteString) }
         }
-        let id = UUID().uuidString; urls[id] = (url, Date(), owner); reverse[owner+"|"+url.absoluteString] = id
+        let id = UUID().uuidString; urls[id] = (url, Date(), owner, origin); reverse[key] = id
         return local(id)
     }
     private func local(_ id: String) -> URL { URL(string: "http://127.0.0.1:\(port)/\(secret)/\(id)")! }
@@ -177,13 +185,13 @@ import Network
         guard first.count == 3, first[0] == "GET" || first[0] == "HEAD" else { respond(connection, code: 405, body: Data()); return }
         let parts = first[1].split(separator: "/")
         guard parts.count == 2, parts[0] == secret, let entry = urls[String(parts[1])] else { respond(connection, code: 404, body: Data()); return }
-        urls[String(parts[1])] = (entry.0, Date(), entry.2) // Active manifest capabilities must not become the oldest unused entries.
+        urls[String(parts[1])] = (entry.0, Date(), entry.2, entry.3) // Active manifest capabilities must not become the oldest unused entries.
         let isHead = first[0] == "HEAD", knownManifest = entry.0.path.lowercased().hasSuffix(".m3u8")
         var req = URLRequest(url: entry.0, cachePolicy: .reloadIgnoringLocalCacheData)
         req.httpMethod = isHead ? "HEAD" : "GET"
         req.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         req.setValue(Safety.ua, forHTTPHeaderField: "User-Agent")
-        let h=entry.0.host ?? "", platform=["huya.com","msstatic.com","tbcache.com"].contains(where:{Safety.inDomain(h,$0)}) ? "huya": ["douyucdn.cn","douyucdn2.cn","douyuscdn.com","douyuscdn.cn","douyucdn.com","edgesrv.com"].contains(where:{Safety.inDomain(h,$0)}) ? "douyu":"bilibili"
+        let platform=entry.3 // Keep the originating platform on shared CDN playlists and segments.
         if platform=="huya"{req.setValue("HYSDK(Windows, 30000002)_APP(pc_exe&7060000&official)_SDK(trans&2.32.3.5646)",forHTTPHeaderField:"User-Agent")}
         let referer=platform=="bilibili" ? "https://live.bilibili.com":"https://www."+platform+".com"
         req.setValue(referer+"/", forHTTPHeaderField: "Referer")
@@ -218,7 +226,7 @@ import Network
             if isManifest {
                 guard response.statusCode == 200, data.count < 1024 * 1024, let text = String(data: data, encoding: .utf8), text.hasPrefix("#EXTM3U") else { throw FusionError("播放列表无效") }
                 if text.contains("#EXT-X-MAP") { fragmented.insert(entry.2); if (voice[entry.2] ?? 0) > 0 { voiceStatus[entry.2] = "当前为分片 MP4，保持原声音；请点“应用人声设置并手动重新获取 A”改取 TS" } }
-                data = Data(try rewrite(text, base: response.url ?? entry.0, owner: entry.2).utf8); type = "application/vnd.apple.mpegurl"
+                data = Data(try rewrite(text, base: response.url ?? entry.0, owner: entry.2, platform:entry.3).utf8); type = "application/vnd.apple.mpegurl"
             }
             var transformed=false
             if !isManifest, (voice[entry.2] ?? 0) > 0, !fragmented.contains(entry.2), data.first == 0x47, (req.value(forHTTPHeaderField:"Range")==nil || req.value(forHTTPHeaderField:"Range")=="bytes=0-") {
@@ -236,14 +244,15 @@ import Network
             respond(connection, code: 502, body: Data())
         }
     }
-    func rewrite(_ manifest: String, base: URL, owner: String = "") throws -> String {
+    func rewrite(_ manifest: String, base: URL, owner: String = "", platform:String? = nil) throws -> String {
+        let origin=platform ?? Self.mediaPlatform(base)
         let regex = try NSRegularExpression(pattern: "URI=\"([^\"]+)\"")
         func replacement(_ raw: String) throws -> String {
             guard let resolved = URL(string: raw, relativeTo: base)?.absoluteURL,
                   var components = URLComponents(url: resolved, resolvingAgainstBaseURL: true) else { throw FusionError("无效媒体地址") }
             if components.scheme == "http" { components.scheme = "https" }
             guard let target = components.url, Safety.media(target) else { throw FusionError("播放列表包含不允许的地址") }
-            return try register(target, owner:owner).absoluteString
+            return try register(target, owner:owner, platform:origin).absoluteString
         }
         return try manifest.components(separatedBy: .newlines).map { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)

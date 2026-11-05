@@ -35,9 +35,10 @@ enum PlatformRoom {
         }};return result
     }
     static func huyaRedirect(_ original:URLRequest,to target:URL?,count:Int)->URLRequest? {
-        guard count<3,let initial=original.url?.host,["huya.com","msstatic.com","mobgslb.tbcache.com"].contains(where:{Safety.inDomain(initial,$0)}),original.url?.path.lowercased().contains(".flv")==true,
+        guard count<3,let initial=original.url?.host,["huya.com","msstatic.com","mobgslb.tbcache.com"].contains(where:{Safety.inDomain(initial,$0)}),
               let target,Safety.media(target),let host=target.host,["huya.com","msstatic.com","mobgslb.tbcache.com","bytefcdnrd.com"].contains(where:{Safety.inDomain(host,$0)}) else{return nil}
-        var redirected=URLRequest(url:target);redirected.httpMethod="GET"
+        guard let method=original.httpMethod,["GET","HEAD"].contains(method) else{return nil}
+        var redirected=URLRequest(url:target,cachePolicy:original.cachePolicy,timeoutInterval:original.timeoutInterval);redirected.httpMethod=method
         for header in ["User-Agent","Referer","Origin","Range","Accept-Encoding"]{if let value=original.value(forHTTPHeaderField:header){redirected.setValue(value,forHTTPHeaderField:header)}}
         return redirected
     }
