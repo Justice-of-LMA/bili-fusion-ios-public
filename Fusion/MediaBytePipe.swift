@@ -16,7 +16,8 @@ final class MediaBytePipe: NSObject, URLSessionDataDelegate {
         // Follow only a platform CDN redirect for the current request;
         // it never rebuilds a stream, retries a failure or selects another line.
         guard let next = PlatformRoom.huyaRedirect(self.request,to:request.url,count:redirects)
-            ?? Safety.biliMediaRedirect(self.request,to:request.url,count:redirects) else { completionHandler(nil); return }
+            ?? Safety.biliMediaRedirect(self.request,to:request.url,count:redirects)
+            ?? PlatformRoom.douyuRedirect(self.request,to:request.url,count:redirects) else { completionHandler(nil); return }
         redirects+=1;completionHandler(next)
     }
     func urlSession(_ session:URLSession,dataTask:URLSessionDataTask,didReceive response:URLResponse,completionHandler:@escaping(URLSession.ResponseDisposition)->Void){

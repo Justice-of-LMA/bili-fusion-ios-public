@@ -62,5 +62,19 @@ final class PlatformTests:XCTestCase {
   s.setBlocking(["users":[["platform":"bilibili","uid":"1"]]]);XCTAssertEqual(s.items.count,3)
   s.setBlocking(["users":[["platform":"douyu","uid":"1"]]]);visible=s.visible(time:11,edge:11,rows:5,chat:true,sc:false);XCTAssertEqual(visible[0].mergeCount,1)
  }
+ func testDouyuAliasMustMatchVIPAndIsNeverEvaluated()throws{
+  let data="0:[\"$\",\"room\",{\"roomInfo\":{\"room\":{\"room_id\":6979222,\"vipId\":6657}}}]"
+  let frame=try JSONSerialization.data(withJSONObject:[1,data]),html="<script>self.__next_f.push("+String(data:frame,encoding:.utf8)!+")</script>"
+  XCTAssertEqual(PlatformRoom.douyuRoomAlias(html,"6657"),"6979222");XCTAssertNil(PlatformRoom.douyuRoomAlias(html,"12306"))
+  XCTAssertNil(PlatformRoom.douyuRoomAlias("<script>alert(1)</script>","6657"))
+ }
+ func testDouyuMediaRedirectKeepsMediaHeadersAndDropsCredentials(){
+  var request=URLRequest(url:URL(string:"https://a.douyucdn.cn/live/a.flv")!);request.httpMethod="GET"
+  request.setValue("bytes=0-",forHTTPHeaderField:"Range");request.setValue("fixture",forHTTPHeaderField:"Cookie");request.setValue("Bearer fixture",forHTTPHeaderField:"Authorization")
+  let next=PlatformRoom.douyuRedirect(request,to:URL(string:"https://b.douyucdn2.cn/live/a.flv"),count:0)
+  XCTAssertNotNil(next);XCTAssertEqual(next?.value(forHTTPHeaderField:"Range"),"bytes=0-");XCTAssertNil(next?.value(forHTTPHeaderField:"Cookie"));XCTAssertNil(next?.value(forHTTPHeaderField:"Authorization"))
+  for target in ["http://b.douyucdn.cn/a.flv","https://douyucdn.cn.evil.test/a.flv","https://127.0.0.1/a.flv"]{XCTAssertNil(PlatformRoom.douyuRedirect(request,to:URL(string:target),count:0))}
+  XCTAssertNil(PlatformRoom.douyuRedirect(request,to:URL(string:"https://b.douyucdn.cn/a.flv"),count:3))
+ }
 }
 

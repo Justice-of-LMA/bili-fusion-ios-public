@@ -41,6 +41,24 @@ enum PlatformRoom {
         for header in ["User-Agent","Referer","Origin","Range","Accept-Encoding"]{if let value=original.value(forHTTPHeaderField:header){redirected.setValue(value,forHTTPHeaderField:header)}}
         return redirected
     }
+    static func douyuRoomAlias(_ html:String,_ id:String)->String? {
+        guard let regex=try? NSRegularExpression(pattern:#"<script\b[^>]*>\s*self\.__next_f\.push\((.*?)\)\s*</script>"#,options:[.dotMatchesLineSeparators,.caseInsensitive]) else{return nil}
+        for match in regex.matches(in:html,range:NSRange(html.startIndex...,in:html)) {
+            guard let range=Range(match.range(at:1),in:html),let bytes=String(html[range]).data(using:.utf8),
+                  let frame=(try? JSONSerialization.jsonObject(with:bytes)) as? [Any],frame.count>1,let text=frame[1] as? String,
+                  let info=try? object(text,after:"\"roomInfo\":"),let room=info["room"] as? JSON else{continue}
+            let real=String(room.int64("room_id"));if room.int64("room_id")>0,real != id,String(room.int64("vipId"))==id{return real}
+        };return nil
+    }
+    static func douyuRedirect(_ original:URLRequest,to target:URL?,count:Int)->URLRequest? {
+        let roots=["douyucdn.cn","douyucdn2.cn","douyuscdn.com","douyuscdn.cn","douyucdn.com","edgesrv.com"]
+        guard count<3,let from=original.url,Safety.media(from),let host=from.host,roots.contains(where:{Safety.inDomain(host,$0)}),
+              let target,Safety.media(target),let to=target.host,roots.contains(where:{Safety.inDomain(to,$0)}),
+              let method=original.httpMethod,["GET","HEAD"].contains(method) else{return nil}
+        var next=URLRequest(url:target,cachePolicy:original.cachePolicy,timeoutInterval:original.timeoutInterval);next.httpMethod=method
+        for header in ["User-Agent","Referer","Origin","Range","Accept-Encoding","Cache-Control"]{if let value=original.value(forHTTPHeaderField:header){next.setValue(value,forHTTPHeaderField:header)}}
+        return next
+    }
     static func object(_ text: String, after marker: String) throws -> JSON {
         guard let mark=text.range(of:marker),let start=text[mark.upperBound...].firstIndex(of:"{") else { throw FusionError("官方房间数据暂不可用") }
         var depth=0,quoted=false,escape=false
@@ -92,7 +110,15 @@ enum PlatformRoom {
     func preview(_ platform: String, _ input: String) async throws -> JSON {
         let id:String
         if platform=="huya"{id=try await huyaRoom(input)}else{id=try PlatformRoom.id(platform,input)}
-        if platform=="douyu" { let r=try await json("https://www.douyu.com/betard/"+id).obj("room");guard r.int64("room_id")>0 else { throw FusionError("未找到斗鱼房间") };return ["platform":platform,"room":String(r.int64("room_id")),"name":r.str("owner_name"),"title":r.str("room_name"),"cover":PlatformRoom.https(r.str("room_pic")),"live":r.int("show_status")==1] }
+        if platform=="douyu" {
+            var text=try await html("https://www.douyu.com/betard/"+id)
+            if text.trimmingCharacters(in:.whitespacesAndNewlines).hasPrefix("<"),text.contains("您观看的房间已被关闭") {
+                let page=try await html("https://www.douyu.com/"+id)
+                guard let canonical=PlatformRoom.douyuRoomAlias(page,id) else{throw FusionError("斗鱼房间已关闭或需在官方房间验证后手动重试")}
+                text=try await html("https://www.douyu.com/betard/"+canonical)
+            }
+            guard let data=text.data(using:.utf8),let root=(try? JSONSerialization.jsonObject(with:data)) as? JSON else{throw FusionError("斗鱼接口未返回直播数据，请在官方房间核实")}
+            let r=root.obj("room");guard r.int64("room_id")>0 else { throw FusionError("未找到斗鱼房间") };return ["platform":platform,"room":String(r.int64("room_id")),"name":r.str("owner_name"),"title":r.str("room_name"),"cover":PlatformRoom.https(r.str("room_pic")),"live":r.int("show_status")==1] }
         let root=try PlatformRoom.object(await html("https://m.huya.com/"+id,mobile:true),after:"HNF_GLOBAL_INIT"),info=root.obj("roomInfo"),r=info.obj("tLiveInfo")
         guard r.int64("lProfileRoom")>0 else { throw FusionError("未找到虎牙房间") }
         return ["platform":platform,"room":String(r.int64("lProfileRoom")),"name":info.obj("tProfileInfo").str("sNick"),"title":r.str("sIntroduction").isEmpty ? r.str("sRoomName"):r.str("sIntroduction"),"cover":PlatformRoom.https(r.str("sScreenshot")),"live":info.int("eLiveStatus")==2,"_huya":root]

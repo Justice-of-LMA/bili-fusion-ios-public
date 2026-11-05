@@ -38,7 +38,7 @@ const messageMenu=FusionDanmaku.menu({reply:prepareReply,copy:text=>rpc('clipboa
 function prepareReply(message,context){const c=channels[context.source];if(!c||c.epoch!==context.epoch||context.generation!==generation)throw Error('原直播间已改变，请点击当前房间的新弹幕');replyDraft={context:{...context},suffix:'@'+message.user+'：'+message.text};$('target').value=context.source;$('message').value=replyDraft.suffix;$('settings').hidden=true;wake();let hint=$('replyNote');if(!hint){hint=document.createElement('div');hint.id='replyNote';hint.className='reply-note';$('composer').append(hint);}hint.replaceChildren(document.createTextNode('回复 '+context.source+' · '+message.user));const cancel=document.createElement('button');cancel.type='button';cancel.textContent='×';cancel.setAttribute('aria-label','取消回复');cancel.onclick=()=>{if(replyDraft&&$('message').value.endsWith(replyDraft.suffix))$('message').value=$('message').value.slice(0,-replyDraft.suffix.length);replyDraft=null;hint.hidden=true;};hint.append(cancel);hint.hidden=false;requestAnimationFrame(()=>{$('message').focus({preventScroll:true});$('message').setSelectionRange(0,0);});notice('在 @引用前输入回复；尚未发送，完整文字长度按平台检查。');}
 function messageContext(source){const c=channels[source];return {source,platform:c?.room?.platform||'bilibili',room:String(c?.room?.room||''),epoch:c?.epoch,generation};}
 function refreshBulletGroup(b){const old=b.group.members[0]?.key;if(!b.group.filter((m,c)=>!blocked(m,c.source)))return false;if(old!==b.group.members[0]?.key)b.el.querySelector(".username")?.remove();b.source=b.group.members[0].context.source;if(b.badge)FusionDanmaku.badge(b.badge,b.group);return true;}
-async function setupVoiceMode(){try{const mode=await rpc('voiceMode');aiVoiceMode=mode?.ai===true;voiceFeature(aiVoiceMode);if(!aiVoiceMode)return;document.querySelector('h1 small').textContent='AI 去人声 0.4.9';$('voiceModeLabel').textContent='A AI 去人声开关（本机）';$('voiceModeHint').textContent='GTCRN 轻量语音模型与突发大声上限：从原声中减去模型估计的人声。仅处理 A 的 HLS/TS/AAC，B/C 不变；FLV / 分片 MP4 不处理，需要手动选可用的 TS 线路。会损伤部分游戏声音；处理后续片段，不上传音频、不自动刷新。';$('voiceStatus').textContent='AI 默认关闭。强度 0% 等同关闭，后续片段直接保留原声、不运行模型。开关与0–100%强度会记住；已缓冲的音频需先播完，不自动刷新。开启后可先用100%试听。';}catch{voiceFeature(false);}}
+async function setupVoiceMode(){try{const mode=await rpc('voiceMode');aiVoiceMode=mode?.ai===true;voiceFeature(aiVoiceMode);if(!aiVoiceMode)return;document.querySelector('h1 small').textContent='AI 去人声 0.4.10';$('voiceModeLabel').textContent='A AI 去人声开关（本机）';$('voiceModeHint').textContent='GTCRN 轻量语音模型与突发大声上限：从原声中减去模型估计的人声。仅处理 A 的 HLS/TS/AAC，B/C 不变；FLV / 分片 MP4 不处理，需要手动选可用的 TS 线路。会损伤部分游戏声音；处理后续片段，不上传音频、不自动刷新。';$('voiceStatus').textContent='AI 默认关闭。强度 0% 等同关闭，后续片段直接保留原声、不运行模型。开关与0–100%强度会记住；已缓冲的音频需先播完，不自动刷新。开启后可先用100%试听。';}catch{voiceFeature(false);}}
 async function applyVoice(){voiceFailure='';if(!aiVoiceMode){$('voiceA').checked=false;return;}const strength=$('voiceA').checked?Number($('voiceStrength').value)/100:0;$('voiceStrengthValue').textContent=$('voiceStrength').value+'%';try{const c=channels.A;if(c?.media.webMode){c.voice?.close?.();$('voiceStatus').textContent='此 FLV 线路未经过 AI 模型，保留原声音；请手动选择 HLS/TS，不会自动换线。';return;}await rpc('mediaVoice',{strength});}catch(e){voiceFailure='当前未处理，保持原声音：'+e.message;$('voiceStatus').textContent=voiceFailure;notice(e.message,true);}}
 window.__fusionVoiceStatus=value=>{if(voiceFailure){$('voiceStatus').textContent=voiceFailure;return;}if(channels.A?.media.webMode)return;if(!$('voiceA').checked){$('voiceStatus').textContent='已关闭，保留 A 原声音';return;}if($('voiceA').checked)$('voiceStatus').textContent=value+(aiVoiceMode?'。仅本机处理 A 的后续 TS/AAC 片段（单声道/立体声），不改 B；未支持格式保留原声。':'。只处理后续未缓存的 TS/AAC 片段，单声道和不支持的格式保留原声音。');};
 function voiceFeature(enabled){if(enabled||$('removedLegacyVoice'))return;const hint=$('voiceModeHint')||$('voiceStrength').closest('label').nextElementSibling;const hidden=document.createElement('div');hidden.hidden=true;hidden.id='removedLegacyVoice';document.body.append(hidden);for(const node of [$('voiceA').closest('label'),$('voiceStrength').closest('label'),$('voiceApply'),hint,$('voiceStatus')])if(node)hidden.append(node);$('voiceA').checked=false;$('voiceStrength').value='0';}
@@ -242,8 +242,10 @@ function addBullet(event,source,now){
   flying.push({el,group,badge,width,source,lane:track.lane,duration:track.duration,age:0,last:now,countChat:event.type==='chat',counted:false});
 }
 function ranges(media){const out=[];for(let i=0;i<media.buffered.length;i++)out.push([media.buffered.start(i),media.buffered.end(i)]);return out;}
+const formatControls=FusionStreamFormats.mount({get:source=>channels[source],notice,apple:true,change:c=>{clearSourceBullets(c.source);c.compatibleSource=null;c.open();}});
 function renderQuality(c){
-  const s=c.source,select=$('quality'+s),wanted=Number(c.room.requestedQuality||0),source=c.room.sources[c.index];
+  const s=c.source,select=$('quality'+s),wanted=Number(c.room.requestedQuality||0),source=c.currentSource||c.room.sources[c.index];
+  formatControls.render();
   select.replaceChildren(new Option('自动（默认档位）','0'));
   for(const q of c.room.qualities||[])select.add(new Option(q.label,String(q.qn)));
   if(wanted&&!Array.from(select.options).some(o=>o.value===String(wanted))){const o=new Option('所选档位暂不可用',String(wanted));o.disabled=true;select.add(o);}
@@ -279,7 +281,7 @@ class Channel{
     this.media.onseekerror=e=>{this.holdUntil=0;this.renderStatus('跳转未完成，请点继续或重新调整');notice(this.source+' 延迟调整失败：'+e.message,true);};
   }
   playing(){
-    this.lastMediaFailure='';networkCompat.clear(this.source);this.started=true;this.media.style.visibility='visible';
+    this.lastMediaFailure='';networkCompat.clear(this.source);formatControls.render();this.started=true;this.media.style.visibility='visible';
     const target=this.restoreDelayPending;this.restoreDelayPending=null;
     if(target>0)this.applyDelay(target);
     this.renderStatus();renderQuality(this);
@@ -297,7 +299,7 @@ class Channel{
     this.timeline.restartMedia(this.media.currentTime);this.pending=this.pending.filter(m=>m.type==='sc');
     this.switching=true;this.destroyEngine();this.switching=false;this.started=false;this.lastEnd=0;this.holdUntil=0;this.delay=0;this.restoreDelayPending=preferredDelays[this.source];
     renderOffsets();
-    const source=this.room.sources[this.index];
+    const source=formatControls.selected(this.source,this.room,false);this.currentSource=source;
     renderQuality(this);
     if(!source){this.renderStatus('直播线路失败，请重新连接');return;}
     if(!foreground){this.suspended=true;this.renderStatus('已暂停连接，点击继续恢复');return;}
@@ -328,7 +330,7 @@ class Channel{
   }
   fallback(reason){
     if(this.closed||this.retry||this.switching)return;
-    this.lastMediaFailure=reason||'播放中断，请手动重新获取画质';networkCompat.offer(this.source,reason,this);this.media.pause();this.renderStatus(reason||'播放中断，请手动重新获取画质');notice(this.source+' 播放停止，未自动重连或切换线路。'+(reason?' '+reason:''),true);
+    this.lastMediaFailure=reason||'播放中断，请手动重新获取画质';networkCompat.offer(this.source,reason,this);formatControls.render();this.media.pause();this.renderStatus(reason||'播放中断，请手动重新获取画质');notice(this.source+' 播放停止，未自动重连或切换线路。'+(reason?' '+reason:''),true);
   }
   edge(now){
     const r=ranges(this.media);if(!r.length)return null;
@@ -381,7 +383,7 @@ function stop(){
   window.cleanView?.exit({restoreMedia:false});
   void rpc('pipStop').catch(()=>{});pipEnabled=false;
   generation++;
-  for(const c of Object.values(channels))c.close();channels={};
+  for(const c of Object.values(channels))c.close();channels={};formatControls.render();
   rpc('stopChat').catch(()=>{});manualPaused=false;updatePlaybackService();clearBullets();cardLayer.replaceChildren();scNodes.clear();
   $('placeholder').hidden=false;$('pause').disabled=$('live').disabled=$('stop').disabled=true;$('pause').textContent='暂停';
   for(const s of SOURCES){

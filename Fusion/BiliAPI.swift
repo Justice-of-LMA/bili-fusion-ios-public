@@ -107,7 +107,7 @@ import WebKit
         let info = try await data("/room/v1/Room/get_info?room_id=\(id)")
         let room = info.int64("room_id")
         guard room > 0, info.int("live_status") == 1 else { throw FusionError("直播间不存在或当前未开播") }
-        let play = try await data("/xlive/web-room/v2/index/getRoomPlayInfo?room_id=\(room)&protocol=0,1&format=\(preferTS ? "1":"0,1,2")&codec=0&qn=\(quality == 0 ? (audioOnly ? 80 : 10000) : quality)&platform=web&ptype=8")
+        let play = try await data("/xlive/web-room/v2/index/getRoomPlayInfo?room_id=\(room)&protocol=0,1&format=0,1,2&codec=0&qn=\(quality == 0 ? (audioOnly ? 80 : 10000) : quality)&platform=web&ptype=8")
         var result = try Self.playback(play, requested: quality); result["room"] = room; result["title"] = info.str("title"); return result
     }
     static func playback(_ play: JSON, requested: Int) throws -> JSON {
@@ -117,7 +117,7 @@ import WebKit
             let label = d.obj("media_base_desc").obj("detail_desc").str("desc")
             names[d.int("qn")] = String((label.isEmpty ? d.str("desc") : label).prefix(60))
         }
-        for stream in pu.arr("stream") { for format in stream.arr("format") where ["ts", "fmp4"].contains(format.str("format_name")) {
+        for stream in pu.arr("stream") { for format in stream.arr("format") where ["ts", "fmp4", "flv"].contains(format.str("format_name")) {
             for codec in format.arr("codec") where codec.str("codec_name") == "avc" {
                 let actual = codec.int("current_qn"); var usable = false
                 var accepted = 0
@@ -126,7 +126,7 @@ import WebKit
                     if components.scheme == "http" { components.scheme = "https" }
                     guard let url = components.url, Safety.media(url) else { continue }
                     usable = true
-                    sources.append(["type": "hls", "url": url.absoluteString, "quality": actual, "qualityLabel": names[actual] ?? "档位 \(actual)"])
+                    sources.append(["type": format.str("format_name")=="flv" ? "flv":"hls", "url": url.absoluteString, "quality": actual, "qualityLabel": names[actual] ?? "档位 \(actual)"])
                     accepted += 1
                     if accepted == 2 { break }
                 }
@@ -137,13 +137,21 @@ import WebKit
             }
         }}
         guard !sources.isEmpty else { throw FusionError("该房间暂未提供 iOS 可用的 HTTPS H.264 / HLS 线路") }
+        sources=sources.filter{$0.str("type")=="hls"}+sources.filter{$0.str("type")=="flv"}
+        let allSources=sources
+        let hls=sources.filter{$0.str("type")=="hls"};if !hls.isEmpty{sources=hls}
         let actualQualities = sources.map { $0.int("quality") }
         let selected = requested > 0
             ? actualQualities.filter { $0 <= requested }.max() ?? actualQualities.min()!
             : actualQualities.max()!
         sources = sources.filter { $0.int("quality") == selected }
         let qualities = available.sorted(by: >).map { ["qn": $0, "label": names[$0] ?? "档位 \($0)"] as JSON }
-        return ["sources": sources, "qualities": qualities, "requestedQuality": requested, "currentQuality": sources[0].int("quality")]
+        let formatSources=["hls","flv"].flatMap { type -> [JSON] in
+            let rows=allSources.filter{$0.str("type")==type},tiers=rows.map{$0.int("quality")}
+            let tier=requested>0 ? tiers.filter{$0<=requested}.max() ?? tiers.min() : tiers.max()
+            return rows.filter{$0.int("quality")==tier}
+        }
+        return ["sources": sources, "formatSources":formatSources, "qualities": qualities, "requestedQuality": requested, "currentQuality": sources[0].int("quality")]
     }
     func config(_ room: Int64) async throws -> JSON {
         await prepareIdentity()

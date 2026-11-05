@@ -67,7 +67,7 @@ import Network
                 URL(string: $0, relativeTo: request.url)?.absoluteURL
             }
             guard let target, visited.insert(target).inserted,
-                  let next = Safety.biliMediaRedirect(original, to: target, count: count) else {
+                  let next = Safety.biliMediaRedirect(original, to: target, count: count) ?? PlatformRoom.douyuRedirect(original,to:target,count:count) else {
                 throw FusionError("直播线路重定向不可用（HTTP \(response.statusCode)）")
             }
             request = next
