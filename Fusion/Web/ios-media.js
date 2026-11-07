@@ -15,7 +15,23 @@ class IOSMedia{
   get audioOnly(){return !!this._audioOnly;}
   set audioOnly(value){this._audioOnly=!!value;if(this.webMode){this.element.style.visibility=value?'hidden':'visible';return;}this.command('mediaAudioOnly',{value:this._audioOnly}).catch(e=>this.onseekerror?.(e));}
   get currentTime(){if(this.webMode)return this.element.currentTime;const s=this.state;return s.currentTime+(!this.pendingSeek&&!s.paused&&!s.seeking&&s.readyState>=3?s.rate*Math.min(.3,(performance.now()-this.at)/1000):0);}
-  set currentTime(time){if(this.webMode){this.element.currentTime=time;return;}const rev=++this.seekSerial,token=this.token;this.pendingSeek=rev;this.state.currentTime=time;this.state.seeking=true;this.at=performance.now();this.command('mediaSeek',{time}).then(result=>{if(this.pendingSeek!==rev||this.token!==token)return;this.pendingSeek=0;this.state.seeking=false;if(result?.state)this.update(result.state);}).catch(e=>{if(this.pendingSeek!==rev||this.token!==token)return;this.pendingSeek=0;this.state.seeking=false;this.onseekerror?.(e);});}
+  set currentTime(time){void this.seekTo(time).catch(e=>this.onseekerror?.(e));}
+  async seekTo(time){
+    if(this.webMode){this.element.currentTime=time;return true;}
+    const rev=++this.seekSerial,token=this.token;
+    this.pendingSeek=rev;this.state.currentTime=time;this.state.seeking=true;this.at=performance.now();
+    try{
+      const result=await this.command('mediaSeek',{time});
+      if(this.pendingSeek!==rev||this.token!==token)return false;
+      this.pendingSeek=0;this.state.seeking=false;
+      if(result?.state)this.update(result.state);
+      return true;
+    }catch(error){
+      if(this.pendingSeek!==rev||this.token!==token)return false;
+      this.pendingSeek=0;this.state.seeking=false;
+      throw error;
+    }
+  }
   get buffered(){if(this.webMode)return this.element.buffered;const r=this.state.loaded||this.state.ranges||[];return {length:r.length,start:i=>r[i][0],end:i=>r[i][1]};}
   get paused(){return this.webMode?this.element.paused:this.state.paused;}
   get seeking(){return this.webMode?this.element.seeking:!!(this.pendingSeek||this.state.seeking);}

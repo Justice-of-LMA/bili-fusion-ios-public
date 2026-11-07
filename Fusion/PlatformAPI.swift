@@ -61,6 +61,33 @@ enum PlatformRoom {
         for header in ["User-Agent","Referer","Origin","Range","Accept-Encoding","Cache-Control"]{if let value=original.value(forHTTPHeaderField:header){next.setValue(value,forHTTPHeaderField:header)}}
         return next
     }
+    @MainActor static func douyuPlay(_ fetch:(String) async throws -> JSON) async throws -> (data:JSON,url:URL) {
+        func data(from response:JSON) throws -> JSON {
+            guard response.int("error")==0 else { throw FusionError("斗鱼取流失败："+response.str("msg")) }
+            return response.obj("data")
+        }
+        func streamURL(_ data:JSON) -> URL? {
+            let server=data.str("rtmp_url"),stream=data.str("rtmp_live")
+            guard !server.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,
+                  !stream.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,
+                  let url=URL(string:https(server+"/"+stream).replacingOccurrences(of:"&amp;",with:"&")),
+                  Safety.media(url) else { return nil }
+            return url
+        }
+        let initialResponse=try await fetch("")
+        let first=try data(from:initialResponse)
+        if let url=streamURL(first) { return (first,url) }
+        let reported=first.str("rtmp_cdn")
+        let current=(reported.isEmpty ? first.str("selected_cdn") : reported).lowercased()
+        let alternate=first.arr("cdnsWithName").map{$0.str("cdn")}.first{
+            $0.lowercased() != current && $0.matches(#"\A[A-Za-z0-9_-]{1,32}\z"#)
+        } ?? (current=="hw-h5" ? "hs-h5":"hw-h5")
+        try Task.checkCancellation()
+        let alternateResponse=try await fetch(alternate)
+        let second=try data(from:alternateResponse)
+        guard let url=streamURL(second) else { throw FusionError("斗鱼没有返回受信任的 HTTPS 直播源（已尝试备用线路）") }
+        return (second,url)
+    }
     static func object(_ text: String, after marker: String) throws -> JSON {
         guard let mark=text.range(of:marker),let start=text[mark.upperBound...].firstIndex(of:"{") else { throw FusionError("官方房间数据暂不可用") }
         var depth=0,quoted=false,escape=false
@@ -160,12 +187,12 @@ enum PlatformRoom {
         } else {
             let script=try await json("https://www.douyu.com/swf_api/homeH5Enc?rids="+id).obj("data").str("room"+id)
             let signed=try await signer.sign(script,room:id)
-            let result=try await json("https://www.douyu.com/lapi/live/getH5Play/"+id,body:signed+"&cdn=&rate=\(quality)&ver=Douyu_223061205&iar=1&ive=1&hevc=0&fa=0")
-            guard result.int("error")==0 else { throw FusionError("斗鱼取流失败："+result.str("msg")) }
-            let d=result.obj("data"),rate=d.int("rate")
+            let (d,u)=try await PlatformRoom.douyuPlay { cdn in
+                try await self.json("https://www.douyu.com/lapi/live/getH5Play/"+id,body:signed+"&cdn=\(cdn)&rate=\(quality)&ver=Douyu_223061205&iar=1&ive=1&hevc=0&fa=0")
+            }
+            let rate=d.int("rate")
             qualities=d.arr("multirates").map{["qn":$0.int("rate"),"label":$0.str("name")] as JSON}
-            let address=PlatformRoom.https(d.str("rtmp_url")+"/"+d.str("rtmp_live")).replacingOccurrences(of:"&amp;",with:"&")
-            if let u=URL(string:address),Safety.media(u) { sources.append(["url":u.absoluteString,"type":u.path.contains(".m3u8") ? "hls":"flv","quality":rate,"qualityLabel":qualities.first{$0.int("qn")==rate}?.str("label") ?? "平台当前档位"]) }
+            sources.append(["url":u.absoluteString,"type":u.path.contains(".m3u8") ? "hls":"flv","quality":rate,"qualityLabel":qualities.first{$0.int("qn")==rate}?.str("label") ?? "平台当前档位"])
         }
         room.removeValue(forKey:"_huya");guard !sources.isEmpty else { throw FusionError("平台没有提供可用的播放源") }
         room["sources"]=sources;room["qualities"]=qualities;room["requestedQuality"]=quality;room["currentQuality"]=sources[0].int("quality")

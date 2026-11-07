@@ -77,6 +77,24 @@ final class PlatformTests:XCTestCase {
   for target in ["http://b.douyucdn.cn/a.flv","https://douyucdn.cn.evil.test/a.flv","https://127.0.0.1/a.flv"]{XCTAssertNil(PlatformRoom.douyuRedirect(request,to:URL(string:target),count:0))}
   XCTAssertNil(PlatformRoom.douyuRedirect(request,to:URL(string:"https://b.douyucdn.cn/a.flv"),count:3))
  }
+ @MainActor func testDouyuPlayOnlySwitchesOnceForInvalidDefault()async throws{
+  let valid:JSON=["error":0,"data":["rtmp_url":"https://backup.douyucdn2.cn/live","rtmp_live":"fixture.flv","rate":3]]
+  let invalid:JSON=["error":0,"data":["rtmp_url":"https://untrusted.example/live","rtmp_live":"fixture.flv",
+     "rtmp_cdn":"hw-h5","cdnsWithName":[["cdn":"hw-h5"],["cdn":"bad&rate=0"],["cdn":"hs-h5"]]]]
+  var requests=[String]()
+  let first=try await PlatformRoom.douyuPlay { cdn in requests.append(cdn);return valid }
+  XCTAssertEqual(requests,[""]);XCTAssertEqual(first.url.host,"backup.douyucdn2.cn")
+  requests.removeAll()
+  let switched=try await PlatformRoom.douyuPlay { cdn in requests.append(cdn);return cdn.isEmpty ? invalid : valid }
+  XCTAssertEqual(requests,["","hs-h5"]);XCTAssertEqual(switched.data.int("rate"),3)
+  requests.removeAll()
+  do {
+   _=try await PlatformRoom.douyuPlay { cdn in requests.append(cdn);return ["error":0,"data":NSNull()] }
+   XCTFail("Missing addresses must not enter playback")
+  } catch {
+   XCTAssertEqual(requests,["","hw-h5"])
+  }
+ }
  func testDouyuFLVBytePipeFollowsObserved2561707CDNRedirect(){
   let initial=URL(string:"https://huos3a.douyucdn2.cn/live/fixture.flv?sign=fixture")!
   let target=URL(string:"https://2409_8c44_2_ff03_8000_0_b00_179.bytefcdnrd.com/live/fixture.flv?sign=fixture")!

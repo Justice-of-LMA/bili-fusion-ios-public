@@ -74,8 +74,37 @@ FusionSCLifetimeUI.mount(scLifetimePanel,scLifetimeConfig,async value=>{await rp
 // Migrate saved actual delays, preserving a previous imported signed reference when valid.
 try{const conf=JSON.parse(localStorage.getItem('fusion-mobile-v1')||'{}'),saved=conf.timeOffsets||(shareOffsets?Object.fromEntries(SOURCES.map((s,i)=>[s,Number(shareOffsets[i])])):preferredDelays);const enabled=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked]));const actual=FusionOffsets.normalize(saved,enabled);if(SOURCES.every(s=>!enabled[s]||Math.abs(actual[s]-preferredDelays[s])<.01))Object.assign(preferredOffsets,saved);else Object.assign(preferredOffsets,preferredDelays);}catch{Object.assign(preferredOffsets,preferredDelays);}
 let acceptedOffsetSources=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked]));
-function renderOffsets(){for(const s of SOURCES){$('delay'+s).value=preferredOffsets[s];$('delay'+s+'Value').textContent=FusionOffsets.format(preferredOffsets[s]);if($('offset'+s))$('offset'+s).value=preferredOffsets[s].toFixed(1);if($('actualDelay'+s))$('actualDelay'+s).textContent='实际延迟 '+preferredDelays[s].toFixed(1)+'s';}}
-function applyOffsets(source,value){try{const proposed={...preferredOffsets,[source]:value},enabled=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked])),actual=FusionOffsets.normalize(proposed,enabled);const plans=[];for(const s of SOURCES){const c=channels[s];if(c?.started&&enabled[s])plans.push([c,actual[s],FusionOffsets.transition(c.media,c.delay,actual[s],Math.max(0,(c.holdUntil-performance.now())/1000))]);}acceptedOffsetSources={...enabled};Object.assign(preferredOffsets,proposed);for(const s of SOURCES)preferredDelays[s]=actual[s];for(const [c,next,plan] of plans)c.commitDelay(next,plan);for(const s of SOURCES)if(channels[s]&&!channels[s].started)channels[s].restoreDelayPending=actual[s];shareOffsets=SOURCES.map(s=>preferredOffsets[s]);save();renderOffsets();notice('已更新三路相对偏移；实际缓冲延迟见各路数值。');return true;}catch(error){renderOffsets();notice(error.message,true);return false;}}
+function renderOffsets(){
+  for(const s of SOURCES){
+    $('delay'+s).value=preferredOffsets[s];
+    $('delay'+s+'Value').textContent=FusionOffsets.format(preferredOffsets[s]);
+    if($('offset'+s))$('offset'+s).value=preferredOffsets[s].toFixed(1);
+    const c=channels[s],label=$('actualDelay'+s);
+    if(!label)continue;
+    const actual=c?.started?c.delay:preferredDelays[s],pending=c?.pendingDelay??c?.applyingDelay?.next;
+    label.textContent='实际延迟 '+actual.toFixed(1)+'s';
+    if(c?.started&&pending!=null)label.textContent+=(c.applyingDelay?' · 正在调整，目标 ':' · 等待缓存，目标 ')+pending.toFixed(1)+'s';
+    else if(c?.delayFailure)label.textContent+=' · 调整未完成，请重试';
+  }
+}
+function applyOffsets(source,value){
+  const proposed={...preferredOffsets,[source]:value};
+  const enabled=Object.fromEntries(SOURCES.map(s=>[s,$('enabled'+s).checked]));
+  let actual;
+  try{actual=FusionOffsets.normalize(proposed,enabled);}
+  catch(error){renderOffsets();notice(error.message,true);return false;}
+  const previous={...preferredDelays};
+  acceptedOffsetSources={...enabled};
+  Object.assign(preferredOffsets,proposed);
+  Object.assign(preferredDelays,actual);
+  for(const s of SOURCES){
+    if(enabled[s]&&(s===source||actual[s]!==previous[s]))channels[s]?.applyDelay(actual[s]);
+  }
+  shareOffsets=SOURCES.map(s=>preferredOffsets[s]);
+  save();renderOffsets();
+  notice('已记录相对偏移，各路的应用进度见实际延迟。');
+  return true;
+}
 FusionOffsets.controls(()=>preferredOffsets,applyOffsets);renderOffsets();
 if(!['audio','pause'].includes($('backgroundMode').value))$('backgroundMode').value='audio';
 if(!['auto','portrait','landscape'].includes($('screenOrientation').value))$('screenOrientation').value='auto';
@@ -274,6 +303,7 @@ class Channel{
   constructor(source,room,epoch){
     this.source=source;this.room=room;this.epoch=epoch;this.media=new IOSMedia(source,rpc);this.timeline=new C.Timeline();this.book=new C.EmojiBook();
     this.receivedChats=0;this.displayedChats=0;this.countedMessages=new WeakSet();this.index=0;this.closed=false;this.delay=0;this.holdUntil=0;this.started=false;this.pending=[];this.lastEnd=0;this.endAt=performance.now();this.lastMediaTime=0;this.chatState='消息准备中';this.lastMediaFailure='';
+    this.clearDelayAdjustment();
     this.media.onwaiting=()=>this.renderStatus('正在缓冲');
     this.media.onplaying=()=>this.playing();
     this.media.onerror=error=>this.fallback(error?.message);
@@ -282,8 +312,7 @@ class Channel{
   }
   playing(){
     this.lastMediaFailure='';networkCompat.clear(this.source);formatControls.render();this.started=true;this.media.style.visibility='visible';
-    const target=this.restoreDelayPending;this.restoreDelayPending=null;
-    if(target>0)this.applyDelay(target);
+    this.tryPendingDelay();
     this.renderStatus();renderQuality(this);
   }
   renderStatus(playing=''){
@@ -297,7 +326,7 @@ class Channel{
     if(this.closed)return;
     this.lastMediaFailure='';networkCompat.clear(this.source);
     this.timeline.restartMedia(this.media.currentTime);this.pending=this.pending.filter(m=>m.type==='sc');
-    this.switching=true;this.destroyEngine();this.switching=false;this.started=false;this.lastEnd=0;this.holdUntil=0;this.delay=0;this.restoreDelayPending=preferredDelays[this.source];
+    this.switching=true;this.destroyEngine();this.switching=false;this.started=false;this.lastEnd=0;this.holdUntil=0;this.delay=0;this.pendingDelay=preferredDelays[this.source];
     renderOffsets();
     const source=formatControls.selected(this.source,this.room,false);this.currentSource=source;
     renderQuality(this);
@@ -322,6 +351,7 @@ class Channel{
     this.holdUntil=0;this.renderStatus('已暂停连接，点击继续恢复');
   }
   destroyEngine(){
+    this.clearDelayAdjustment();
     this.mediaRevision=(this.mediaRevision||0)+1;
     clearTimeout(this.retry);this.retry=null;
     if(this.engine){this.engine.destroy();this.engine=null;}
@@ -347,10 +377,61 @@ class Channel{
     if(at===null){this.pending.push(m);if(this.pending.length>100)this.pending.shift();}
     else this.timeline.add(m,at);
   }
-  applyDelay(value){const next=C.clamp(value,0,60);if(!this.started){this.restoreDelayPending=next;return;}try{this.commitDelay(next,FusionOffsets.transition(this.media,this.delay,next,ranges(this.media)&&Math.max(0,(this.holdUntil-performance.now())/1000)));}catch(error){notice(error.message,true);}}
-  commitDelay(next,action){this.delay=next;clearSourceBullets(this.source);if(action.seek!==null){this.media.currentTime=Math.max(0,action.seek);this.timeline.seek(this.media.currentTime);}this.holdUntil=action.hold>.02?performance.now()+action.hold*1000:0;if(this.holdUntil)this.media.pause();else this.play();this.renderStatus();}
+  clearDelayAdjustment(){
+    this.pendingDelay=null;
+    this.applyingDelay=null;
+    this.nextDelayCheck=0;
+    this.delayFailure=false;
+  }
+  applyDelay(value){
+    this.pendingDelay=C.clamp(value,0,60);
+    this.nextDelayCheck=0;
+    this.delayFailure=false;
+    this.tryPendingDelay();
+  }
+  tryPendingDelay(now=performance.now()){
+    const next=this.pendingDelay;
+    if(next===null||!this.started||this.suspended||this.lastMediaFailure||this.applyingDelay||this.media.seeking||now<this.nextDelayCheck)return;
+    if(next===this.delay){this.pendingDelay=null;this.delayFailure=false;renderOffsets();return;}
+    let plan;
+    try{
+      plan=FusionOffsets.transition(this.media,this.delay,next,Math.max(0,(this.holdUntil-now)/1000));
+    }catch{
+      this.nextDelayCheck=now+250;
+      return;
+    }
+    this.pendingDelay=null;
+    if(plan.seek===null){this.commitDelay(next,plan.hold);return;}
+    const adjustment={next};
+    this.applyingDelay=adjustment;
+    renderOffsets();
+    this.media.seekTo(Math.max(0,plan.seek)).then(done=>{
+      if(this.applyingDelay!==adjustment)return;
+      this.applyingDelay=null;
+      if(!done){renderOffsets();return;}
+      this.timeline.seek(this.media.currentTime);
+      this.commitDelay(next,plan.hold);
+    }).catch(error=>{
+      if(this.applyingDelay!==adjustment)return;
+      this.applyingDelay=null;
+      this.delayFailure=true;
+      this.renderStatus('延迟调整未完成，请重试');
+      renderOffsets();
+      notice(this.source+' 延迟调整失败：'+error.message,true);
+    });
+  }
+  commitDelay(next,hold){
+    this.delay=next;
+    this.delayFailure=false;
+    clearSourceBullets(this.source);
+    this.holdUntil=hold>.02?performance.now()+hold*1000:0;
+    if(this.holdUntil)this.media.pause();else this.play();
+    this.renderStatus();
+    renderOffsets();
+  }
   tick(now){
     if(this.suspended)return;
+    this.tryPendingDelay(now);
     const edge=this.edge(now);
     if(foreground&&this.media.paused&&edge!==null&&edge-this.media.currentTime>75&&this.room.sources[this.index]?.type==='flv'){
       this.suspend();notice(this.source+' 暂停后的缓冲已达上限，已停止下载；点击继续可重新连接。');return;
@@ -536,7 +617,8 @@ $('login').onclick=()=>{const menu=document.createElement('dialog');menu.innerHT
 $('pause').onclick=()=>{manualPaused=!manualPaused;if(manualPaused)clearBullets();if(pipEnabled)void rpc('pipPause',{value:manualPaused}).catch(()=>{});for(const c of Object.values(channels)){if(pipEnabled&&c.source==='A')continue;manualPaused?c.media.pause():c.play();}if(manualPaused)clearBullets();$('pause').textContent=manualPaused?'继续':'暂停';updatePlaybackService();wake();};
 $('live').onclick=()=>{Object.assign(preferredOffsets,{A:0,B:0,C:0});shareOffsets=null;
   clearBullets();manualPaused=false;$('pause').textContent='暂停';
-  for(const c of Object.values(channels)){const r=ranges(c.media);if(r.length){c.media.currentTime=Math.max(r.at(-1)[0],r.at(-1)[1]-.7);c.timeline.seek(c.media.currentTime);}c.delay=0;preferredDelays[c.source]=0;save();c.holdUntil=0;$('delay'+c.source).value='0';$('delay'+c.source+'Value').textContent='0.0s';c.play();}
+  for(const c of Object.values(channels)){c.clearDelayAdjustment();const r=ranges(c.media);if(r.length){c.media.currentTime=Math.max(r.at(-1)[0],r.at(-1)[1]-.7);c.timeline.seek(c.media.currentTime);}c.delay=0;preferredDelays[c.source]=0;c.holdUntil=0;c.play();}
+  save();renderOffsets();
   notice('回到当前可播放位置，额外延迟归零；各路仍可能有不同的原始直播延迟。');
 };
 $('settingsToggle').onclick=()=>{$('settings').hidden=!$('settings').hidden;wake();};
